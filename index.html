@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f2a37">
+<title>Cellules Entrepôt</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <h1 class="app-title">Cellules Entrepôt</h1>
+  <div class="header-actions">
+    <button id="btn-import-theorique" class="btn btn-icon" title="Importer état théorique">📥 Import</button>
+    <button id="btn-export-excel" class="btn btn-icon" title="Exporter Excel">📊 Excel</button>
+    <button id="btn-export-json" class="btn btn-icon" title="Exporter sauvegarde JSON">💾 Sauver</button>
+    <button id="btn-import-json" class="btn btn-icon" title="Importer sauvegarde JSON">📂 Restaurer</button>
+  </div>
+  <input type="file" id="file-import-theorique" accept=".xlsx,.xls,.csv" hidden>
+  <input type="file" id="file-import-json" accept=".json" hidden>
+</header>
+
+<main id="main-view">
+
+  <!-- Étape 1 : choix de l'emplacement -->
+  <section id="panel-emplacement" class="panel">
+    <h2 class="panel-title">Emplacement</h2>
+    <div class="field-row">
+      <label for="select-allee">Allée</label>
+      <select id="select-allee">
+        <option value="">—</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+      </select>
+    </div>
+
+    <div class="field-row">
+      <span class="field-label">Façade</span>
+      <div class="radio-group" id="radio-facade">
+        <label><input type="radio" name="facade" value="Gauche"> Gauche</label>
+        <label><input type="radio" name="facade" value="Droite"> Droite</label>
+        <label><input type="radio" name="facade" value="Sol"> Sol</label>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <label for="select-etage">Étage</label>
+      <select id="select-etage">
+        <option value="">—</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+      </select>
+    </div>
+  </section>
+
+  <!-- Étape 2 : grille des 18 cellules -->
+  <section id="panel-cellules" class="panel hidden">
+    <h2 class="panel-title" id="cellules-titre">Cellules</h2>
+    <div id="grille-cellules" class="grille-cellules"></div>
+  </section>
+
+  <!-- Étape 3 : contenu d'une cellule -->
+  <section id="panel-cellule-detail" class="panel hidden">
+    <button id="btn-retour-grille" class="btn btn-lien">← Retour aux cellules</button>
+    <h2 class="panel-title" id="cellule-titre">Cellule</h2>
+
+    <div class="ajout-article">
+      <input type="search" id="input-recherche" placeholder="Rechercher un article (code ou désignation)">
+      <div id="filtres-rayons" class="filtres"></div>
+      <div id="resultats-recherche" class="resultats-recherche hidden"></div>
+    </div>
+
+    <h3 class="sous-titre">Articles dans cette cellule</h3>
+    <ul id="liste-articles-cellule" class="liste-articles"></ul>
+  </section>
+
+  <!-- État vide / message -->
+  <p id="message-vide" class="message-vide hidden"></p>
+
+</main>
+
+<!-- Modale : déplacer un article vers une autre cellule -->
+<div id="modale-deplacer" class="modale hidden">
+  <div class="modale-contenu">
+    <h3>Déplacer vers…</h3>
+    <div class="field-row">
+      <label for="deplacer-allee">Allée</label>
+      <select id="deplacer-allee">
+        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <span class="field-label">Façade</span>
+      <div class="radio-group" id="deplacer-radio-facade">
+        <label><input type="radio" name="deplacer-facade" value="Gauche" checked> Gauche</label>
+        <label><input type="radio" name="deplacer-facade" value="Droite"> Droite</label>
+        <label><input type="radio" name="deplacer-facade" value="Sol"> Sol</label>
+      </div>
+    </div>
+    <div class="field-row">
+      <label for="deplacer-etage">Étage</label>
+      <select id="deplacer-etage">
+        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <label for="deplacer-cellule">Cellule</label>
+      <select id="deplacer-cellule"></select>
+    </div>
+    <div class="modale-actions">
+      <button id="btn-annuler-deplacer" class="btn btn-secondaire">Annuler</button>
+      <button id="btn-confirmer-deplacer" class="btn btn-principal">Déplacer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Zone de notification -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="lib/xlsx.full.min.js"></script>
+<script src="lib/Sortable.min.js"></script>
+<script src="utils.js"></script>
+<script src="db.js"></script>
+<script src="search.js"></script>
+<script src="import.js"></script>
+<script src="export.js"></script>
+<script src="ui.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
