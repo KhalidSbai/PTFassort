@@ -2,17 +2,10 @@
 
 const ORDRE_FACADE = { Gauche: 0, Droite: 1, Sol: 2 };
 
-/** Construit et télécharge le fichier Excel final : un seul onglet, trié Allée > Façade > Étage > Cellule */
-async function exporterExcel() {
-  const [affectations, articles] = await Promise.all([getAllAffectations(), getAllArticles()]);
-
-  if (!affectations.length) {
-    throw new Error("Aucun article n'a encore été affecté à une cellule.");
-  }
-
-  const articleParCode = new Map(articles.map((a) => [a.codeArticle, a]));
-
-  const trie = [...affectations].sort((a, b) => {
+/** Trie une liste d'affectations dans l'ordre Allée > Façade > Étage > Cellule > ordre.
+ *  Utilisé à la fois par l'export Excel et par la vue de consultation par zone. */
+function trierAffectationsPourAffichage(affectations) {
+  return [...affectations].sort((a, b) => {
     if (a.allee !== b.allee) return a.allee - b.allee;
     const fa = ORDRE_FACADE[a.facade] ?? 9;
     const fb = ORDRE_FACADE[b.facade] ?? 9;
@@ -23,6 +16,18 @@ async function exporterExcel() {
     if (a.cellule !== b.cellule) return a.cellule - b.cellule;
     return a.ordre - b.ordre;
   });
+}
+
+/** Construit et télécharge le fichier Excel final : un seul onglet, trié Allée > Façade > Étage > Cellule */
+async function exporterExcel() {
+  const [affectations, articles] = await Promise.all([getAllAffectations(), getAllArticles()]);
+
+  if (!affectations.length) {
+    throw new Error("Aucun article n'a encore été affecté à une cellule.");
+  }
+
+  const articleParCode = new Map(articles.map((a) => [a.codeArticle, a]));
+  const trie = trierAffectationsPourAffichage(affectations);
 
   const lignes = trie.map((aff) => {
     const art = articleParCode.get(aff.codeArticle) || {};

@@ -47,8 +47,12 @@ button { font-family: inherit; }
 
 .header-actions {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
+}
+
+@media (min-width: 380px) {
+  .header-actions { grid-template-columns: repeat(5, 1fr); }
 }
 
 .btn {
@@ -326,6 +330,44 @@ select {
   flex: 1;
   min-height: 46px;
 }
+
+/* ---------- Vue par zone ---------- */
+.zone-carte {
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon);
+  margin-top: 12px;
+  overflow: hidden;
+}
+
+.zone-titre {
+  background: #eef1f4;
+  padding: 10px 12px;
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.zone-cellule-groupe {
+  padding: 8px 12px;
+  border-top: 1px solid var(--couleur-bordure);
+}
+
+.zone-cellule-titre {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--couleur-texte-att);
+  margin-bottom: 4px;
+}
+
+.zone-ligne-article {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 0.85rem;
+}
+
+.zone-ligne-article .code { font-weight: 700; }
+.zone-ligne-article .meta { color: var(--couleur-texte-att); font-size: 0.78rem; white-space: nowrap; }
 
 /* ---------- Divers ---------- */
 .message-vide {

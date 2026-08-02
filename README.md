@@ -99,10 +99,11 @@ Le cahier des charges original laissait 3 points ambigus ; voici les décisions 
 
 ## 8. Interface / UX
 
-- Écran unique en 3 "panneaux" qui s'affichent/masquent (pas de routing) :
+- Écran unique en 4 "panneaux" qui s'affichent/masquent (pas de routing) :
   1. `panel-emplacement` : sélection allée/façade/étage
   2. `panel-cellules` : grille des 18 cellules avec compteur d'articles
   3. `panel-cellule-detail` : contenu d'une cellule (recherche, filtres, liste réordonnable)
+  4. `panel-vue-zone` : **vue de consultation** (bouton "👁️ Vue" dans l'en-tête) — liste en lecture seule de tous les articles enregistrés, groupés par zone (Allée/Façade/Étage) puis par cellule, avec un filtre optionnel par allée. Utilise le même ordre de tri que l'export Excel (`trierAffectationsPourAffichage()` dans `export.js`, partagé avec `ui.js`). Le bouton "← Retour" restaure l'écran précédent (grille ou détail de cellule selon le contexte).
 - Une **modale** (`#modale-deplacer`) pour choisir la cellule de destination lors d'un déplacement.
 - Design volontairement sobre : peu de couleurs (1 accent bleu `#2563eb`), gros boutons tactiles (min. 44px), grille responsive 3/4 colonnes.
 - Toutes les interactions passent par l'objet `etat` en haut de `ui.js` (emplacement courant, cellule ouverte, filtres cochés, instance SortableJS active).

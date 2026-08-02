@@ -17,6 +17,7 @@
     <button id="btn-export-excel" class="btn btn-icon" title="Exporter Excel">📊 Excel</button>
     <button id="btn-export-json" class="btn btn-icon" title="Exporter sauvegarde JSON">💾 Sauver</button>
     <button id="btn-import-json" class="btn btn-icon" title="Importer sauvegarde JSON">📂 Restaurer</button>
+    <button id="btn-vue-zone" class="btn btn-icon" title="Voir les articles enregistrés par zone">👁️ Vue</button>
   </div>
   <input type="file" id="file-import-theorique" accept=".xlsx,.xls,.csv" hidden>
   <input type="file" id="file-import-json" accept=".json" hidden>
@@ -79,6 +80,25 @@
 
     <h3 class="sous-titre">Articles dans cette cellule</h3>
     <ul id="liste-articles-cellule" class="liste-articles"></ul>
+  </section>
+
+  <!-- Vue de consultation : tous les articles enregistrés, groupés par zone -->
+  <section id="panel-vue-zone" class="panel hidden">
+    <button id="btn-retour-vue-zone" class="btn btn-lien">← Retour</button>
+    <h2 class="panel-title">Articles enregistrés par zone</h2>
+
+    <div class="field-row">
+      <label for="select-vue-allee">Allée</label>
+      <select id="select-vue-allee">
+        <option value="">Toutes</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+      </select>
+    </div>
+
+    <div id="contenu-vue-zone"></div>
   </section>
 
   <!-- État vide / message -->

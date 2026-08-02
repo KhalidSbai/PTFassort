@@ -244,6 +244,76 @@ function initModaleDeplacer() {
   });
 }
 
+// ---------- Vue de consultation : articles enregistrés par zone ----------
+
+function masquerPanelsPrincipaux() {
+  ['panel-emplacement', 'panel-cellules', 'panel-cellule-detail', 'panel-vue-zone'].forEach((id) =>
+    document.getElementById(id).classList.add('hidden')
+  );
+}
+
+async function afficherVueParZone() {
+  masquerPanelsPrincipaux();
+  document.getElementById('panel-vue-zone').classList.remove('hidden');
+  await renderContenuVueZone();
+}
+
+function retourDepuisVueZone() {
+  document.getElementById('panel-vue-zone').classList.add('hidden');
+  document.getElementById('panel-emplacement').classList.remove('hidden');
+  if (etat.celluleOuverte) document.getElementById('panel-cellule-detail').classList.remove('hidden');
+  else if (etat.emplacement.allee) document.getElementById('panel-cellules').classList.remove('hidden');
+}
+
+async function renderContenuVueZone() {
+  const alleeFiltre = document.getElementById('select-vue-allee').value;
+  const [affectations, articles] = await Promise.all([getAllAffectations(), getAllArticles()]);
+  const parCode = new Map(articles.map((a) => [a.codeArticle, a]));
+
+  let liste = affectations;
+  if (alleeFiltre) liste = liste.filter((a) => String(a.allee) === alleeFiltre);
+  liste = trierAffectationsPourAffichage(liste);
+
+  const conteneur = document.getElementById('contenu-vue-zone');
+  conteneur.innerHTML = '';
+
+  if (!liste.length) {
+    conteneur.innerHTML = `<p class="message-vide">Aucun article enregistré${alleeFiltre ? ' pour cette allée.' : " pour l'instant."}</p>`;
+    return;
+  }
+
+  let zoneCleActuelle = null;
+  let zoneDiv = null;
+  let celluleActuelle = null;
+  let celluleDiv = null;
+
+  liste.forEach((aff) => {
+    const zoneCle = `${aff.allee}-${aff.facade}-${aff.etage ?? 0}`;
+    if (zoneCle !== zoneCleActuelle) {
+      zoneCleActuelle = zoneCle;
+      zoneDiv = document.createElement('div');
+      zoneDiv.className = 'zone-carte';
+      zoneDiv.innerHTML = `<div class="zone-titre">${libelleZone({ allee: aff.allee, facade: aff.facade, etage: aff.etage })}</div>`;
+      conteneur.appendChild(zoneDiv);
+      celluleActuelle = null;
+    }
+
+    if (aff.cellule !== celluleActuelle) {
+      celluleActuelle = aff.cellule;
+      celluleDiv = document.createElement('div');
+      celluleDiv.className = 'zone-cellule-groupe';
+      celluleDiv.innerHTML = `<div class="zone-cellule-titre">Cellule ${zeroPad(aff.cellule)}</div>`;
+      zoneDiv.appendChild(celluleDiv);
+    }
+
+    const art = parCode.get(aff.codeArticle) || { designation: '(article introuvable)', rayon: '', famille: '' };
+    const ligne = document.createElement('div');
+    ligne.className = 'zone-ligne-article';
+    ligne.innerHTML = `<span class="code">${aff.codeArticle} — ${art.designation}</span><span class="meta">${art.rayon}${art.famille ? ' · ' + art.famille : ''}</span>`;
+    celluleDiv.appendChild(ligne);
+  });
+}
+
 // ---------- En-tête : import / export ----------
 
 function initActionsEntete() {
@@ -307,4 +377,8 @@ function initUI() {
   document.getElementById('input-recherche').addEventListener('input', lancerRecherche);
   initModaleDeplacer();
   initActionsEntete();
+
+  document.getElementById('btn-vue-zone').addEventListener('click', afficherVueParZone);
+  document.getElementById('btn-retour-vue-zone').addEventListener('click', retourDepuisVueZone);
+  document.getElementById('select-vue-allee').addEventListener('change', renderContenuVueZone);
 }
