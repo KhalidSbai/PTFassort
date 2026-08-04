@@ -1,4 +1,4 @@
-# Cellules Entrepôt — README 
+# Cellules Entrepôt — README
 
 ## 1. Objectif du projet
 
@@ -121,8 +121,20 @@ Le cahier des charges original laissait 3 points ambigus ; voici les décisions 
 - Les icônes PWA (`assets/icon-192.png`, `icon-512.png`) sont des placeholders générés (grille bleue) — à remplacer par une vraie identité visuelle si besoin.
 - La recherche limite l'affichage à 60 résultats (`search.js`, `rechercherArticles()`) pour rester rapide sur mobile — ajustable si le catalogue est très volumineux.
 - Pas de undo/historique des actions (seulement la sauvegarde JSON manuelle comme filet de sécurité).
-- Le service worker utilise une stratégie "cache d'abord" simple (`service-worker.js`) — à adapter si un mécanisme de mise à jour de version plus fin est souhaité (actuellement : changer `CACHE_NOM` force le renouvellement du cache).
+- Le service worker utilise une stratégie "cache d'abord" simple (`service-worker.js`).
 
-## 11. Pour reprendre le projet avec une autre IA
+## 11. Détection de nouvelle version
+
+Le service worker ne s'active plus automatiquement (`self.skipWaiting()` retiré) : quand une nouvelle version est déployée, elle reste "en attente" tant que l'utilisateur n'a pas cliqué sur le bouton de mise à jour. Flux complet :
+
+1. **À chaque déploiement**, il faut changer la constante `CACHE_NOM` dans `service-worker.js` (ex. `v1` → `v2`). C'est ce changement qui fait que le navigateur détecte un nouveau fichier de service worker et déclenche l'événement `updatefound`.
+2. `app.js` (`initDetectionMiseAJour()`) écoute cet événement. Dès qu'une nouvelle version est installée (state `installed`) alors qu'un `controller` est déjà actif (donc pas une 1ère installation), la bannière `#notif-maj` en bas d'écran s'affiche avec le bouton **"Mettre à jour"**.
+3. Il vérifie aussi au chargement si une version est déjà en attente (`registration.waiting`), et relance une vérification (`registration.update()`) **toutes les heures** si l'app reste ouverte longtemps.
+4. Au clic sur "Mettre à jour", un message `SKIP_WAITING` est envoyé au service worker en attente (écouté dans `service-worker.js` via `self.addEventListener('message', ...)`), qui s'active alors immédiatement.
+5. Quand le nouveau service worker prend le contrôle (`controllerchange`), la page se recharge automatiquement une seule fois pour charger les nouveaux fichiers.
+
+Ce choix (bouton plutôt que rechargement 100 % automatique et silencieux) évite d'interrompre un utilisateur en train de saisir des articles dans une cellule. Pour passer en rechargement totalement automatique, il suffirait de sauter l'affichage de la bannière et d'appeler directement `registration.waiting.postMessage('SKIP_WAITING')` dès sa détection.
+
+## 12. Pour reprendre le projet avec une autre IA
 
 Donne-lui ce README + le contenu des fichiers `db.js`, `ui.js` et `utils.js` en priorité (ce sont les 3 fichiers qui portent le plus de logique et de règles métier). Les sections 4, 6 et 7 ci-dessus sont les règles à ne surtout pas casser lors de toute modification.

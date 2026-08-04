@@ -393,3 +393,31 @@ select {
 }
 .toast.erreur { background: var(--couleur-danger); }
 .toast.succes { background: var(--couleur-succes); }
+
+/* ---------- Bannière de mise à jour disponible ---------- */
+.notif-maj {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 200;
+  background: var(--couleur-texte);
+  color: #fff;
+  padding: 12px var(--espace);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+}
+
+.notif-maj span {
+  font-size: 0.85rem;
+  flex: 1;
+}
+
+.notif-maj .btn-principal {
+  flex: none;
+  padding: 10px 16px;
+  min-height: 40px;
+}

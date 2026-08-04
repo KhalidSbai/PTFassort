@@ -24,7 +24,8 @@ self.addEventListener('install', (evt) => {
   evt.waitUntil(
     caches.open(CACHE_NOM).then((cache) => cache.addAll(FICHIERS_A_METTRE_EN_CACHE))
   );
-  self.skipWaiting();
+  // Pas de self.skipWaiting() ici : la nouvelle version reste "en attente"
+  // tant que la page ne demande pas explicitement à l'activer (bouton "Mettre à jour").
 });
 
 self.addEventListener('activate', (evt) => {
@@ -34,6 +35,11 @@ self.addEventListener('activate', (evt) => {
     )
   );
   self.clients.claim();
+});
+
+// Déclenché par app.js quand l'utilisateur clique sur "Mettre à jour"
+self.addEventListener('message', (evt) => {
+  if (evt.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
 // Stratégie "cache d'abord" : tout l'essentiel est déjà en cache après la première visite
