@@ -77,10 +77,9 @@ async function ouvrirCellule(numero) {
   document.getElementById('cellule-titre').textContent = libelleEmplacement({ ...etat.emplacement, cellule: numero });
   document.getElementById('input-recherche').value = '';
 
-  // Par défaut, tous les rayons/familles sont cochés (aucun filtre actif)
-  etat.rayonsCoches = new Set(getRayonsDisponibles());
-  etat.famillesCoches = new Set(getFamillesDisponibles());
-
+  // Les rayons/familles cochés sont volontairement conservés d'une cellule à l'autre
+  // (pas de réinitialisation ici) pour éviter de re-cocher le même rayon en boucle
+  // quand on enregistre plusieurs articles du même rayon à la suite.
   renderFiltres();
   document.getElementById('resultats-recherche').classList.add('hidden');
   await renderListeArticlesCellule();
@@ -314,6 +313,14 @@ async function renderContenuVueZone() {
   });
 }
 
+/** Retire des filtres mémorisés les rayons/familles qui n'existent plus après un import du catalogue */
+function nettoyerFiltresApresImport() {
+  const rayonsDispo = new Set(getRayonsDisponibles());
+  const famillesDispo = new Set(getFamillesDisponibles());
+  etat.rayonsCoches = new Set([...etat.rayonsCoches].filter((r) => rayonsDispo.has(r)));
+  etat.famillesCoches = new Set([...etat.famillesCoches].filter((f) => famillesDispo.has(f)));
+}
+
 // ---------- En-tête : import / export ----------
 
 function initActionsEntete() {
@@ -332,6 +339,7 @@ function initActionsEntete() {
         message += ` ⚠️ ${resultat.orphelins.length} article(s) affecté(s) à une cellule ne sont plus dans l'état théorique.`;
       }
       afficherToast(message, resultat.orphelins.length ? 'erreur' : 'succes', 5000);
+      nettoyerFiltresApresImport();
       renderFiltres();
       if (etat.emplacement.allee) afficherGrilleCellules();
     } catch (err) {
@@ -362,6 +370,7 @@ function initActionsEntete() {
     try {
       await importerSauvegardeJSON(fichier);
       afficherToast('Sauvegarde restaurée', 'succes');
+      nettoyerFiltresApresImport();
       renderFiltres();
       if (etat.celluleOuverte) await renderListeArticlesCellule();
       else if (etat.emplacement.allee) await afficherGrilleCellules();
