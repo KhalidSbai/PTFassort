@@ -254,6 +254,7 @@ function masquerPanelsPrincipaux() {
 async function afficherVueParZone() {
   masquerPanelsPrincipaux();
   document.getElementById('panel-vue-zone').classList.remove('hidden');
+  document.getElementById('input-recherche-vue').value = '';
   await renderContenuVueZone();
 }
 
@@ -266,18 +267,27 @@ function retourDepuisVueZone() {
 
 async function renderContenuVueZone() {
   const alleeFiltre = document.getElementById('select-vue-allee').value;
+  const texteRecherche = document.getElementById('input-recherche-vue').value;
   const [affectations, articles] = await Promise.all([getAllAffectations(), getAllArticles()]);
   const parCode = new Map(articles.map((a) => [a.codeArticle, a]));
 
   let liste = affectations;
   if (alleeFiltre) liste = liste.filter((a) => String(a.allee) === alleeFiltre);
+  if (texteRecherche.trim()) {
+    liste = liste.filter((a) => {
+      const art = parCode.get(a.codeArticle);
+      const texteArticle = a.codeArticle + ' ' + (art ? art.designation : '');
+      return correspondMotsCles(texteArticle, texteRecherche);
+    });
+  }
   liste = trierAffectationsPourAffichage(liste);
 
   const conteneur = document.getElementById('contenu-vue-zone');
   conteneur.innerHTML = '';
 
   if (!liste.length) {
-    conteneur.innerHTML = `<p class="message-vide">Aucun article enregistré${alleeFiltre ? ' pour cette allée.' : " pour l'instant."}</p>`;
+    const raison = texteRecherche.trim() ? ' pour cette recherche' : alleeFiltre ? ' pour cette allée' : '';
+    conteneur.innerHTML = `<p class="message-vide">Aucun article enregistré${raison}.</p>`;
     return;
   }
 
@@ -320,6 +330,8 @@ function nettoyerFiltresApresImport() {
   etat.rayonsCoches = new Set([...etat.rayonsCoches].filter((r) => rayonsDispo.has(r)));
   etat.famillesCoches = new Set([...etat.famillesCoches].filter((f) => famillesDispo.has(f)));
 }
+
+const lancerRechercheVueZone = debounce(renderContenuVueZone, 120);
 
 // ---------- En-tête : import / export ----------
 
@@ -390,4 +402,5 @@ function initUI() {
   document.getElementById('btn-vue-zone').addEventListener('click', afficherVueParZone);
   document.getElementById('btn-retour-vue-zone').addEventListener('click', retourDepuisVueZone);
   document.getElementById('select-vue-allee').addEventListener('change', renderContenuVueZone);
+  document.getElementById('input-recherche-vue').addEventListener('input', lancerRechercheVueZone);
 }

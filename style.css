@@ -332,6 +332,16 @@ select {
 }
 
 /* ---------- Vue par zone ---------- */
+#input-recherche-vue {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--couleur-bordure);
+  font-size: 1rem;
+  min-height: 44px;
+  margin: 10px 0;
+}
+
 .zone-carte {
   border: 1px solid var(--couleur-bordure);
   border-radius: var(--rayon);

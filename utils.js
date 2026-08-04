@@ -58,6 +58,18 @@ function normaliser(texte) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+/**
+ * Vérifie que chaque mot de `texteRecherche` se retrouve quelque part dans `texteCible`,
+ * sans tenir compte de l'ordre des mots ni des mots intercalés.
+ * Ex : correspondMotsCles("Huile de tournesol 5L", "5l huile") -> true
+ */
+function correspondMotsCles(texteCible, texteRecherche) {
+  const mots = normaliser(texteRecherche).split(/\s+/).filter(Boolean);
+  if (!mots.length) return true;
+  const cible = normaliser(texteCible);
+  return mots.every((mot) => cible.includes(mot));
+}
+
 /** Génère un identifiant unique simple (pour les occurrences d'articles en cellule) */
 function genererId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;

@@ -39,13 +39,9 @@ function getFamillesDisponibles() {
  * @param {Set<string>} famillesCoches - familles actuellement cochées (aucune par défaut)
  */
 function rechercherArticles(texte, rayonsCoches, famillesCoches) {
-  const mots = normaliser(texte).split(/\s+/).filter(Boolean);
-
   return _cacheArticles.filter((art) => {
     if (rayonsCoches && rayonsCoches.size && !rayonsCoches.has(art.rayon)) return false;
     if (famillesCoches && famillesCoches.size && art.famille && !famillesCoches.has(art.famille)) return false;
-    if (!mots.length) return true;
-    const texteArticle = normaliser(art.codeArticle) + ' ' + normaliser(art.designation);
-    return mots.every((mot) => texteArticle.includes(mot));
+    return correspondMotsCles(art.codeArticle + ' ' + art.designation, texte);
   }).slice(0, 60); // limite d'affichage pour rester rapide sur mobile
 }
