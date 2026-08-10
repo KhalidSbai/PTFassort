@@ -173,14 +173,17 @@ async function renderListeArticlesCellule() {
         <div class="article-code">${aff.codeArticle}</div>
         <div class="article-designation">${art.designation}</div>
         <div class="article-meta">${art.rayon}${art.famille ? ' · ' + art.famille : ''}</div>
+        ${libelleBadgeStockDLC(aff)}
       </div>
       <div class="article-actions">
+        <button class="icone-btn btn-stock-dlc" title="Stock / DLC">🏷️</button>
         <button class="icone-btn btn-deplacer" title="Déplacer">↔️</button>
         <button class="icone-btn btn-supprimer" title="Supprimer">🗑️</button>
       </div>
     `;
     li.querySelector('.btn-supprimer').addEventListener('click', () => supprimerArticleCellule(aff.id));
     li.querySelector('.btn-deplacer').addEventListener('click', () => ouvrirModaleDeplacer(aff.id));
+    li.querySelector('.btn-stock-dlc').addEventListener('click', () => ouvrirModaleStockDLC(aff));
     liste.appendChild(li);
   });
 
@@ -200,6 +203,42 @@ async function supprimerArticleCellule(id) {
   await supprimerAffectation(id);
   afficherToast('Article supprimé', 'succes');
   await renderListeArticlesCellule();
+}
+
+/** Construit le petit badge "Stock: x · DLC: date" affiché sous un article, si renseigné */
+function libelleBadgeStockDLC(aff) {
+  if (aff.stockReel === null && !aff.dlc) return '';
+  const parties = [];
+  if (aff.stockReel !== null) parties.push(`Stock : ${aff.stockReel}`);
+  if (aff.dlc) parties.push(`DLC : ${aff.dlc}`);
+  const perime = aff.dlc && aff.dlc < new Date().toISOString().slice(0, 10);
+  return `<span class="badge-stock-dlc${perime ? ' perime' : ''}">${parties.join(' · ')}</span>`;
+}
+
+// ---------- Modale Stock / DLC ----------
+
+let _idStockDLC = null;
+
+function ouvrirModaleStockDLC(aff) {
+  _idStockDLC = aff.id;
+  document.getElementById('stock-dlc-titre').textContent = `Stock / DLC — ${aff.codeArticle}`;
+  document.getElementById('input-stock-reel').value = aff.stockReel ?? '';
+  document.getElementById('input-dlc').value = aff.dlc || '';
+  document.getElementById('modale-stock-dlc').classList.remove('hidden');
+}
+
+function initModaleStockDLC() {
+  document.getElementById('btn-annuler-stock-dlc').addEventListener('click', () => {
+    document.getElementById('modale-stock-dlc').classList.add('hidden');
+  });
+  document.getElementById('btn-confirmer-stock-dlc').addEventListener('click', async () => {
+    const stockReel = document.getElementById('input-stock-reel').value;
+    const dlc = document.getElementById('input-dlc').value;
+    await modifierStockDLC(_idStockDLC, { stockReel, dlc });
+    document.getElementById('modale-stock-dlc').classList.add('hidden');
+    afficherToast('Stock / DLC enregistré', 'succes');
+    await renderListeArticlesCellule();
+  });
 }
 
 // ---------- Modale de déplacement ----------
@@ -243,6 +282,34 @@ function initModaleDeplacer() {
   });
 }
 
+// ---------- Bouton Accueil ----------
+
+function allerAccueil() {
+  document.getElementById('select-allee').value = '';
+  document.querySelectorAll('input[name="facade"]').forEach((r) => (r.checked = false));
+  const selectEtage = document.getElementById('select-etage');
+  selectEtage.value = '';
+  selectEtage.disabled = false;
+
+  etat.emplacement = { allee: null, facade: null, etage: null };
+  etat.celluleOuverte = null;
+
+  masquerPanelsPrincipaux();
+  document.getElementById('panel-emplacement').classList.remove('hidden');
+}
+
+// ---------- Aide import ----------
+
+function initAideImport() {
+  document.getElementById('btn-aide-import').addEventListener('click', () => {
+    document.getElementById('modale-aide-import').classList.remove('hidden');
+  });
+  document.getElementById('btn-fermer-aide-import').addEventListener('click', () => {
+    document.getElementById('modale-aide-import').classList.add('hidden');
+  });
+  document.getElementById('btn-telecharger-modele').addEventListener('click', telechargerModeleImport);
+}
+
 // ---------- Vue de consultation : articles enregistrés par zone ----------
 
 function masquerPanelsPrincipaux() {
@@ -261,13 +328,20 @@ async function afficherVueParZone() {
 function retourDepuisVueZone() {
   document.getElementById('panel-vue-zone').classList.add('hidden');
   document.getElementById('panel-emplacement').classList.remove('hidden');
-  if (etat.celluleOuverte) document.getElementById('panel-cellule-detail').classList.remove('hidden');
-  else if (etat.emplacement.allee) document.getElementById('panel-cellules').classList.remove('hidden');
+  if (etat.celluleOuverte) {
+    document.getElementById('panel-cellule-detail').classList.remove('hidden');
+    renderListeArticlesCellule();
+  } else if (etat.emplacement.allee) {
+    afficherGrilleCellules();
+  }
 }
 
 async function renderContenuVueZone() {
   const alleeFiltre = document.getElementById('select-vue-allee').value;
   const texteRecherche = document.getElementById('input-recherche-vue').value;
+
+  document.getElementById('btn-vider-allee').classList.toggle('hidden', !alleeFiltre);
+
   const [affectations, articles] = await Promise.all([getAllAffectations(), getAllArticles()]);
   const parCode = new Map(articles.map((a) => [a.codeArticle, a]));
 
@@ -291,19 +365,69 @@ async function renderContenuVueZone() {
     return;
   }
 
-  let zoneCleActuelle = null;
-  let zoneDiv = null;
-  let celluleActuelle = null;
-  let celluleDiv = null;
+  // Groupement imbriqué : Allée > Façade > Étage > Cellule, chaque niveau avec son bouton "vider"
+  let alleeDiv = null, alleeActuelle = null;
+  let facadeDiv = null, facadeActuelle = null;
+  let etageDiv = null, etageActuelle = null;
+  let celluleDiv = null, celluleActuelle = null;
+
+  const boutonVider = (libelle, critere) => {
+    const btn = document.createElement('button');
+    btn.className = 'bouton-vider';
+    btn.textContent = '🗑️ Vider';
+    btn.title = `Vider ${libelle}`;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      viderParCritere(critere, libelle);
+    });
+    return btn;
+  };
 
   liste.forEach((aff) => {
-    const zoneCle = `${aff.allee}-${aff.facade}-${aff.etage ?? 0}`;
-    if (zoneCle !== zoneCleActuelle) {
-      zoneCleActuelle = zoneCle;
-      zoneDiv = document.createElement('div');
-      zoneDiv.className = 'zone-carte';
-      zoneDiv.innerHTML = `<div class="zone-titre">${libelleZone({ allee: aff.allee, facade: aff.facade, etage: aff.etage })}</div>`;
-      conteneur.appendChild(zoneDiv);
+    if (aff.allee !== alleeActuelle) {
+      alleeActuelle = aff.allee;
+      alleeDiv = document.createElement('div');
+      alleeDiv.className = 'zone-carte';
+      const titre = document.createElement('div');
+      titre.className = 'zone-titre';
+      titre.innerHTML = `<span>Allée ${aff.allee}</span>`;
+      titre.appendChild(boutonVider(`l'allée ${aff.allee}`, { allee: aff.allee }));
+      alleeDiv.appendChild(titre);
+      conteneur.appendChild(alleeDiv);
+      facadeActuelle = null;
+    }
+
+    if (aff.facade !== facadeActuelle) {
+      facadeActuelle = aff.facade;
+      facadeDiv = document.createElement('div');
+      facadeDiv.className = 'facade-groupe';
+      const titre = document.createElement('div');
+      titre.className = 'facade-titre';
+      titre.innerHTML = `<span>Façade ${aff.facade}</span>`;
+      titre.appendChild(boutonVider(`la façade ${aff.facade} (allée ${aff.allee})`, { allee: aff.allee, facade: aff.facade }));
+      facadeDiv.appendChild(titre);
+      alleeDiv.appendChild(facadeDiv);
+      etageActuelle = null;
+    }
+
+    const etageCle = aff.etage ?? 0;
+    if (etageCle !== etageActuelle) {
+      etageActuelle = etageCle;
+      if (aff.facade === 'Sol') {
+        etageDiv = facadeDiv; // pas de sous-niveau étage pour le Sol
+      } else {
+        etageDiv = document.createElement('div');
+        etageDiv.className = 'etage-groupe';
+        const titre = document.createElement('div');
+        titre.className = 'etage-titre';
+        titre.innerHTML = `<span>Étage ${aff.etage}</span>`;
+        titre.appendChild(boutonVider(
+          `l'étage ${aff.etage} (allée ${aff.allee}, façade ${aff.facade})`,
+          { allee: aff.allee, facade: aff.facade, etage: aff.etage }
+        ));
+        etageDiv.appendChild(titre);
+        facadeDiv.appendChild(etageDiv);
+      }
       celluleActuelle = null;
     }
 
@@ -311,8 +435,15 @@ async function renderContenuVueZone() {
       celluleActuelle = aff.cellule;
       celluleDiv = document.createElement('div');
       celluleDiv.className = 'zone-cellule-groupe';
-      celluleDiv.innerHTML = `<div class="zone-cellule-titre">Cellule ${zeroPad(aff.cellule)}</div>`;
-      zoneDiv.appendChild(celluleDiv);
+      const titre = document.createElement('div');
+      titre.className = 'zone-cellule-titre';
+      titre.innerHTML = `<span>Cellule ${zeroPad(aff.cellule)}</span>`;
+      titre.appendChild(boutonVider(
+        `la cellule ${zeroPad(aff.cellule)} (allée ${aff.allee}, façade ${aff.facade}${aff.facade !== 'Sol' ? ', étage ' + aff.etage : ''})`,
+        { allee: aff.allee, facade: aff.facade, etage: aff.facade === 'Sol' ? null : aff.etage, cellule: aff.cellule }
+      ));
+      celluleDiv.appendChild(titre);
+      etageDiv.appendChild(celluleDiv);
     }
 
     const art = parCode.get(aff.codeArticle) || { designation: '(article introuvable)', rayon: '', famille: '' };
@@ -321,6 +452,14 @@ async function renderContenuVueZone() {
     ligne.innerHTML = `<span class="code">${aff.codeArticle} — ${art.designation}</span><span class="meta">${art.rayon}${art.famille ? ' · ' + art.famille : ''}</span>`;
     celluleDiv.appendChild(ligne);
   });
+}
+
+/** Supprime en masse les affectations correspondant à un critère (allée/façade/étage/cellule), avec confirmation */
+async function viderParCritere(critere, libelle) {
+  if (!confirm(`Supprimer toutes les affectations de ${libelle} ? Cette action est irréversible.`)) return;
+  const nombre = await supprimerAffectationsParCritere(critere);
+  afficherToast(`${nombre} occurrence(s) supprimée(s)`, 'succes');
+  await renderContenuVueZone();
 }
 
 /** Retire des filtres mémorisés les rayons/familles qui n'existent plus après un import du catalogue */
@@ -397,10 +536,17 @@ function initUI() {
   document.getElementById('btn-retour-grille').addEventListener('click', retourGrille);
   document.getElementById('input-recherche').addEventListener('input', lancerRecherche);
   initModaleDeplacer();
+  initModaleStockDLC();
+  initAideImport();
   initActionsEntete();
 
+  document.getElementById('btn-accueil').addEventListener('click', allerAccueil);
   document.getElementById('btn-vue-zone').addEventListener('click', afficherVueParZone);
   document.getElementById('btn-retour-vue-zone').addEventListener('click', retourDepuisVueZone);
   document.getElementById('select-vue-allee').addEventListener('change', renderContenuVueZone);
   document.getElementById('input-recherche-vue').addEventListener('input', lancerRechercheVueZone);
+  document.getElementById('btn-vider-allee').addEventListener('click', () => {
+    const allee = document.getElementById('select-vue-allee').value;
+    if (allee) viderParCritere({ allee }, `toute l'allée ${allee}`);
+  });
 }

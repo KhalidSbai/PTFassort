@@ -52,7 +52,11 @@ button { font-family: inherit; }
 }
 
 @media (min-width: 380px) {
-  .header-actions { grid-template-columns: repeat(5, 1fr); }
+  .header-actions { grid-template-columns: repeat(4, 1fr); }
+}
+
+@media (min-width: 520px) {
+  .header-actions { grid-template-columns: repeat(7, 1fr); }
 }
 
 .btn {
@@ -342,6 +346,12 @@ select {
   margin: 10px 0;
 }
 
+.btn-vider-allee {
+  width: 100%;
+  margin-top: 8px;
+  color: var(--couleur-danger);
+}
+
 .zone-carte {
   border: 1px solid var(--couleur-bordure);
   border-radius: var(--rayon);
@@ -354,10 +364,38 @@ select {
   padding: 10px 12px;
   font-weight: 700;
   font-size: 0.88rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.facade-groupe { border-top: 1px solid var(--couleur-bordure); }
+.facade-titre {
+  background: #f7f8fa;
+  padding: 8px 12px;
+  font-weight: 700;
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.etage-groupe { border-top: 1px solid var(--couleur-bordure); }
+.etage-titre {
+  padding: 6px 12px 6px 20px;
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--couleur-texte-att);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .zone-cellule-groupe {
-  padding: 8px 12px;
+  padding: 8px 12px 8px 28px;
   border-top: 1px solid var(--couleur-bordure);
 }
 
@@ -366,11 +404,27 @@ select {
   font-size: 0.8rem;
   color: var(--couleur-texte-att);
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.bouton-vider {
+  background: none;
+  border: none;
+  color: var(--couleur-danger);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 6px;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .zone-ligne-article {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   gap: 8px;
   padding: 4px 0;
   font-size: 0.85rem;
@@ -378,6 +432,39 @@ select {
 
 .zone-ligne-article .code { font-weight: 700; }
 .zone-ligne-article .meta { color: var(--couleur-texte-att); font-size: 0.78rem; white-space: nowrap; }
+
+/* ---------- Aide import ---------- */
+.aide-texte {
+  font-size: 0.85rem;
+  color: var(--couleur-texte);
+  margin: 8px 0;
+}
+
+.aide-tableau {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  margin: 10px 0;
+}
+.aide-tableau th, .aide-tableau td {
+  border: 1px solid var(--couleur-bordure);
+  padding: 6px 8px;
+  text-align: left;
+}
+.aide-tableau th { background: #eef1f4; }
+
+/* ---------- Badge stock/DLC ---------- */
+.badge-stock-dlc {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--couleur-accent-fonce);
+  background: #eef4ff;
+  border-radius: 6px;
+  padding: 1px 6px;
+  margin-top: 2px;
+}
+.badge-stock-dlc.perime { color: #fff; background: var(--couleur-danger); }
 
 /* ---------- Divers ---------- */
 .message-vide {

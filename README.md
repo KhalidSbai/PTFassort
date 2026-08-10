@@ -76,7 +76,9 @@ Une ligne = une occurrence d'un article placé dans une cellule (les doublons so
   etage: number | null,     // null si facade === 'Sol'
   cellule: number,          // 1 à 18
   cle: string,              // cleEmplacement() — sert à l'index 'parCellule'
-  ordre: number             // position dans la cellule, pour le glisser-déposer
+  ordre: number,            // position dans la cellule, pour le glisser-déposer
+  stockReel: number | null, // facultatif, saisi/modifié à tout moment via la modale 🏷️
+  dlc: string | null        // facultatif, format 'YYYY-MM-DD'
 }
 ```
 
@@ -88,8 +90,11 @@ Une ligne = une occurrence d'un article placé dans une cellule (les doublons so
 4. **Ordre des articles dans une cellule** = important, sauvegardé via le champ `ordre`, modifiable par glisser-déposer (SortableJS, géré dans `renderListeArticlesCellule()` dans `ui.js`).
 5. **Déplacement d'un article vers une autre cellule** : l'occurrence est retirée de sa cellule d'origine et ajoutée **en fin** de la cellule de destination (nouvel `ordre` = max + 1). Voir `deplacerAffectation()` dans `db.js`.
 6. **Sauvegarde automatique** : chaque action (ajout, suppression, déplacement, réorganisation) écrit directement dans IndexedDB. Aucun bouton "Enregistrer" n'existe pour les données courantes — seuls les boutons "Sauver/Restaurer" gèrent l'export/import JSON complet en tant que backup externe.
-7. **Recherche par mots-clés indépendants** : chaque mot tapé doit se retrouver dans le code article ou la désignation, sans tenir compte de l'ordre ni des mots intercalés (ex. "huile 5l" ≡ "5l huile"). Voir `rechercherArticles()` dans `search.js`.
-8. **Filtres rayon/famille désactivés par défaut et mémorisés** : les chips ne sont **pas** cochées au départ (aucune restriction, tous les articles sortent). Dès qu'une chip est cochée, elle **reste cochée d'une cellule à l'autre** (l'état n'est plus réinitialisé à chaque ouverture de cellule) — pratique pour enregistrer plusieurs articles du même rayon à la suite sans re-sélectionner le filtre à chaque fois. L'état persiste dans `etat.rayonsCoches` / `etat.famillesCoches` (objet `etat` en haut de `ui.js`) pour toute la session, et n'est nettoyé des valeurs devenues invalides qu'après un import du catalogue ou une restauration de sauvegarde (`nettoyerFiltresApresImport()`).
+7. **Recherche par mots-clés indépendants** : chaque mot tapé doit se retrouver dans le code article ou la désignation, sans tenir compte de l'ordre ni des mots intercalés (ex. "huile 5l" ≡ "5l huile"). Voir `correspondMotsCles()` dans `utils.js`.
+8. **Filtres rayon/famille désactivés par défaut et mémorisés** : les chips ne sont **pas** cochées au départ (aucune restriction, tous les articles sortent). Dès qu'une chip est cochée, elle **reste cochée d'une cellule à l'autre** (l'état n'est plus réinitialisé à chaque ouverture de cellule). L'état persiste dans `etat.rayonsCoches` / `etat.famillesCoches` pour toute la session, et n'est nettoyé des valeurs devenues invalides qu'après un import du catalogue ou une restauration de sauvegarde.
+9. **Seuls les articles encore en stock sont proposés à l'ajout** : `rechercherArticles()` (et les chips de rayon/famille) dans `search.js` ne portent que sur les articles dont `stockTheorique > 0`, pour ne pas encombrer la recherche avec des articles qui n'ont plus de stock théorique. Un article à 0 reste néanmoins visible partout où il a déjà été placé (détail de cellule, Vue par zone, export Excel) — seule la liste de *nouveaux* articles proposés à l'ajout est filtrée.
+10. **Stock réel et DLC sont facultatifs, par occurrence, modifiables à tout moment** : ce sont des champs `stockReel` / `dlc` sur chaque affectation (pas sur l'article du catalogue), jamais demandés à l'ajout. Voir `modifierStockDLC()` dans `db.js` et le bouton 🏷️ sur chaque ligne d'article dans `ui.js`.
+11. **Suppression en masse par zone** : depuis l'écran "Vue" (par zone), un bouton "🗑️ Vider" à chaque niveau (allée, façade, étage, cellule) supprime en une fois toutes les affectations correspondantes, après confirmation. Voir `supprimerAffectationsParCritere()` dans `db.js` et `viderParCritere()` dans `ui.js`.
 
 ## 7. Décisions prises suite aux clarifications (importantes pour la cohérence)
 
@@ -104,9 +109,12 @@ Le cahier des charges original laissait 3 points ambigus ; voici les décisions 
 - Écran unique en 4 "panneaux" qui s'affichent/masquent (pas de routing) :
   1. `panel-emplacement` : sélection allée/façade/étage
   2. `panel-cellules` : grille des 18 cellules avec compteur d'articles
-  3. `panel-cellule-detail` : contenu d'une cellule (recherche, filtres, liste réordonnable)
-  4. `panel-vue-zone` : **vue de consultation** (bouton "👁️ Vue" dans l'en-tête) — liste en lecture seule de tous les articles enregistrés, groupés par zone (Allée/Façade/Étage) puis par cellule, avec un filtre par allée **et une barre de recherche** (code ou désignation, mêmes mots-clés indépendants que l'écran de cellule — voir `correspondMotsCles()` dans `utils.js`, partagée entre `search.js` et `ui.js`) pour retrouver rapidement où se trouve un article donné. Utilise le même ordre de tri que l'export Excel (`trierAffectationsPourAffichage()` dans `export.js`, partagé avec `ui.js`). Le bouton "← Retour" restaure l'écran précédent (grille ou détail de cellule selon le contexte).
+  3. `panel-cellule-detail` : contenu d'une cellule (recherche, filtres, liste réordonnable, badge stock/DLC par article)
+  4. `panel-vue-zone` : **vue de consultation** (bouton "👁️ Vue" dans l'en-tête) — liste en lecture seule de tous les articles enregistrés, groupés en **Allée > Façade > Étage > Cellule**, avec un filtre par allée, un bouton "🗑️ Vider toute cette allée", **un bouton "🗑️ Vider" à chaque niveau du groupement** (allée, façade, étage, cellule — suppression en masse avec confirmation), et une barre de recherche (code ou désignation, mêmes mots-clés indépendants que l'écran de cellule — voir `correspondMotsCles()` dans `utils.js`) pour retrouver rapidement où se trouve un article donné. Utilise le même ordre de tri que l'export Excel (`trierAffectationsPourAffichage()` dans `export.js`). Le bouton "← Retour" restaure l'écran précédent (grille ou détail de cellule selon le contexte).
+- **Bouton "🏠 Accueil"** dans l'en-tête (`allerAccueil()` dans `ui.js`) : réinitialise la sélection d'emplacement et revient à l'écran de départ, depuis n'importe quel écran.
+- **Bouton "❓ Aide"** dans l'en-tête, à côté d'Import : ouvre une modale (`#modale-aide-import`) qui explique la structure attendue du fichier théorique (colonnes, ordre, exemple) et propose un bouton "Télécharger un exemple" qui génère un `.xlsx` modèle prêt à remplir (`telechargerModeleImport()` dans `export.js`).
 - Une **modale** (`#modale-deplacer`) pour choisir la cellule de destination lors d'un déplacement.
+- Une **modale** (`#modale-stock-dlc`) pour renseigner ou modifier, à tout moment, le stock réel et la DLC d'une occurrence précise (bouton 🏷️ sur chaque ligne d'article dans une cellule).
 - Design volontairement sobre : peu de couleurs (1 accent bleu `#2563eb`), gros boutons tactiles (min. 44px), grille responsive 3/4 colonnes.
 - Toutes les interactions passent par l'objet `etat` en haut de `ui.js` (emplacement courant, cellule ouverte, filtres cochés, instance SortableJS active).
 

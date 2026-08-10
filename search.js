@@ -12,20 +12,31 @@ function getCacheArticles() {
   return _cacheArticles;
 }
 
-/** Liste triée des rayons détectés dans le catalogue */
+/**
+ * Articles encore en stock (stockTheorique > 0) : c'est cette liste réduite qui est
+ * proposée quand on cherche un article à ajouter à une cellule, pour ne pas être
+ * encombré par des articles qui n'ont plus de stock théorique. Les articles à 0
+ * restent bien dans le catalogue complet (getAllArticles / getCacheArticles) pour
+ * l'affichage des occurrences déjà enregistrées, l'export Excel, etc.
+ */
+function getCacheArticlesEnStock() {
+  return _cacheArticles.filter((a) => Number(a.stockTheorique) > 0);
+}
+
+/** Liste triée des rayons détectés parmi les articles encore en stock */
 function getRayonsDisponibles() {
-  const set = new Set(_cacheArticles.map((a) => a.rayon).filter(Boolean));
+  const set = new Set(getCacheArticlesEnStock().map((a) => a.rayon).filter(Boolean));
   return [...set].sort((a, b) => a.localeCompare(b, 'fr'));
 }
 
-/** Liste triée des familles détectées (vide si la colonne Famille n'est jamais renseignée) */
+/** Liste triée des familles détectées parmi les articles encore en stock */
 function getFamillesDisponibles() {
-  const set = new Set(_cacheArticles.map((a) => a.famille).filter(Boolean));
+  const set = new Set(getCacheArticlesEnStock().map((a) => a.famille).filter(Boolean));
   return [...set].sort((a, b) => a.localeCompare(b, 'fr'));
 }
 
 /**
- * Recherche + filtrage dans le catalogue.
+ * Recherche + filtrage parmi les articles encore en stock.
  * La recherche texte fonctionne par mots-clés indépendants : chaque mot tapé
  * doit se retrouver quelque part dans le code article ou la désignation,
  * sans tenir compte de l'ordre des mots ni de la présence d'autres mots entre eux.
@@ -39,7 +50,7 @@ function getFamillesDisponibles() {
  * @param {Set<string>} famillesCoches - familles actuellement cochées (aucune par défaut)
  */
 function rechercherArticles(texte, rayonsCoches, famillesCoches) {
-  return _cacheArticles.filter((art) => {
+  return getCacheArticlesEnStock().filter((art) => {
     if (rayonsCoches && rayonsCoches.size && !rayonsCoches.has(art.rayon)) return false;
     if (famillesCoches && famillesCoches.size && art.famille && !famillesCoches.has(art.famille)) return false;
     return correspondMotsCles(art.codeArticle + ' ' + art.designation, texte);

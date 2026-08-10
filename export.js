@@ -40,6 +40,8 @@ async function exporterExcel() {
       'Désignation': art.designation || '',
       'Rayon': art.rayon || '',
       'Famille': art.famille || '',
+      'Stock réel': aff.stockReel ?? '',
+      'DLC': aff.dlc || '',
     };
   });
 
@@ -47,12 +49,27 @@ async function exporterExcel() {
   feuille['!cols'] = [
     { wch: 6 }, { wch: 9 }, { wch: 7 }, { wch: 8 },
     { wch: 14 }, { wch: 30 }, { wch: 16 }, { wch: 16 },
+    { wch: 10 }, { wch: 12 },
   ];
 
   const classeur = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(classeur, feuille, 'Remplissage cellules');
 
   XLSX.writeFile(classeur, `remplissage-cellules_${horodatageFichier()}.xlsx`);
+}
+
+/** Télécharge un fichier Excel exemple avec les bons en-têtes, pour aider à préparer l'import théorique */
+function telechargerModeleImport() {
+  const lignesExemple = [
+    { 'Code article': '123456', 'Désignation': 'Huile de tournesol 5L', 'Stock théorique': 24, 'Rayon': 'Liquides', 'Famille': 'Huiles' },
+    { 'Code article': '789654', 'Désignation': 'Sucre 1 kg', 'Stock théorique': 50, 'Rayon': 'Épicerie', 'Famille': 'Sucres' },
+  ];
+  const feuille = XLSX.utils.json_to_sheet(lignesExemple);
+  feuille['!cols'] = [{ wch: 14 }, { wch: 30 }, { wch: 16 }, { wch: 16 }, { wch: 16 }];
+
+  const classeur = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(classeur, feuille, 'Modèle import');
+  XLSX.writeFile(classeur, 'modele-import-etat-theorique.xlsx');
 }
 
 /** Télécharge une sauvegarde JSON complète (articles + affectations) */

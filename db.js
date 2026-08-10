@@ -134,6 +134,8 @@ async function ajouterAffectation({ codeArticle, allee, facade, etage, cellule }
     cellule: Number(cellule),
     cle,
     ordre: ordreMax + 1,
+    stockReel: null, // facultatif, renseignable à tout moment (voir modifierStockDLC)
+    dlc: null,       // facultatif, format 'YYYY-MM-DD'
   };
 
   const tx = await _transaction(['affectations'], 'readwrite');
@@ -197,6 +199,53 @@ async function reordonnerCellule(cle, idsOrdonnes) {
     tx.oncomplete = resolve;
     tx.onerror = () => reject(tx.error);
   });
+}
+
+/** Met à jour le stock réel et/ou la DLC d'une occurrence précise (facultatif, modifiable à tout moment) */
+async function modifierStockDLC(id, { stockReel, dlc }) {
+  const tx = await _transaction(['affectations'], 'readwrite');
+  const store = tx.objectStore('affectations');
+  const affectation = await _promesseRequete(store.get(id));
+  if (!affectation) throw new Error('Affectation introuvable');
+
+  affectation.stockReel = stockReel === '' || stockReel === null || stockReel === undefined ? null : Number(stockReel);
+  affectation.dlc = dlc || null;
+
+  store.put(affectation);
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve(affectation);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/**
+ * Supprime en masse toutes les affectations correspondant à un critère partiel
+ * (allée seule, allée+façade, allée+façade+étage, ou emplacement complet avec cellule).
+ * Retourne le nombre d'occurrences supprimées.
+ */
+async function supprimerAffectationsParCritere(critere) {
+  const correspond = (a) => {
+    if (critere.allee !== undefined && Number(a.allee) !== Number(critere.allee)) return false;
+    if (critere.facade !== undefined && a.facade !== critere.facade) return false;
+    if (critere.etage !== undefined && (a.etage ?? null) !== (critere.etage === null ? null : Number(critere.etage))) return false;
+    if (critere.cellule !== undefined && Number(a.cellule) !== Number(critere.cellule)) return false;
+    return true;
+  };
+
+  const tout = await getAllAffectations();
+  const aSupprimer = tout.filter(correspond);
+  if (!aSupprimer.length) return 0;
+
+  const tx = await _transaction(['affectations'], 'readwrite');
+  const store = tx.objectStore('affectations');
+  aSupprimer.forEach((a) => store.delete(a.id));
+
+  await new Promise((resolve, reject) => {
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+
+  return aSupprimer.length;
 }
 
 // ---------- Sauvegarde / restauration JSON complète ----------

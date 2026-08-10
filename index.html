@@ -13,7 +13,9 @@
 <header class="app-header">
   <h1 class="app-title">Cellules Entrepôt</h1>
   <div class="header-actions">
+    <button id="btn-accueil" class="btn btn-icon" title="Retour à l'écran d'accueil">🏠 Accueil</button>
     <button id="btn-import-theorique" class="btn btn-icon" title="Importer état théorique">📥 Import</button>
+    <button id="btn-aide-import" class="btn btn-icon" title="Comment préparer le fichier d'import">❓ Aide</button>
     <button id="btn-export-excel" class="btn btn-icon" title="Exporter Excel">📊 Excel</button>
     <button id="btn-export-json" class="btn btn-icon" title="Exporter sauvegarde JSON">💾 Sauver</button>
     <button id="btn-import-json" class="btn btn-icon" title="Importer sauvegarde JSON">📂 Restaurer</button>
@@ -97,6 +99,7 @@
         <option value="4">4</option>
       </select>
     </div>
+    <button id="btn-vider-allee" class="btn btn-secondaire btn-vider-allee hidden">🗑️ Vider toute cette allée</button>
 
     <input type="search" id="input-recherche-vue" placeholder="Rechercher un article (code ou désignation) pour trouver où il se trouve">
 
@@ -150,6 +153,49 @@
 <div id="notif-maj" class="notif-maj hidden">
   <span>Une nouvelle version de l'application est disponible.</span>
   <button id="btn-maj" class="btn btn-principal">Mettre à jour</button>
+</div>
+
+<!-- Modale : aide pour préparer le fichier d'import théorique -->
+<div id="modale-aide-import" class="modale hidden">
+  <div class="modale-contenu">
+    <h3>Comment préparer le fichier d'import ?</h3>
+    <p class="aide-texte">Le fichier doit être au format <strong>Excel (.xlsx/.xls)</strong> ou <strong>CSV</strong>, avec exactement ces colonnes, dans cet ordre, sur la première ligne :</p>
+    <table class="aide-tableau">
+      <thead><tr><th>#</th><th>Colonne</th><th>Exemple</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Code article</td><td>123456</td></tr>
+        <tr><td>2</td><td>Désignation</td><td>Huile de tournesol 5L</td></tr>
+        <tr><td>3</td><td>Stock théorique</td><td>24</td></tr>
+        <tr><td>4</td><td>Rayon</td><td>Liquides</td></tr>
+        <tr><td>5</td><td>Famille <em>(facultatif)</em></td><td>Huiles</td></tr>
+      </tbody>
+    </table>
+    <p class="aide-texte">⚠️ L'orthographe et l'ordre des colonnes doivent être respectés exactement. En cas d'erreur, l'application indique précisément quelle colonne pose problème.</p>
+    <div class="modale-actions">
+      <button id="btn-telecharger-modele" class="btn btn-secondaire">Télécharger un exemple</button>
+      <button id="btn-fermer-aide-import" class="btn btn-principal">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale : stock réel / DLC d'une occurrence -->
+<div id="modale-stock-dlc" class="modale hidden">
+  <div class="modale-contenu">
+    <h3 id="stock-dlc-titre">Stock / DLC</h3>
+    <p class="aide-texte">Ces informations sont facultatives et peuvent être renseignées à tout moment.</p>
+    <div class="field-row">
+      <label for="input-stock-reel">Stock réel</label>
+      <input type="number" id="input-stock-reel" min="0" step="1" placeholder="Ex : 12">
+    </div>
+    <div class="field-row">
+      <label for="input-dlc">DLC</label>
+      <input type="date" id="input-dlc">
+    </div>
+    <div class="modale-actions">
+      <button id="btn-annuler-stock-dlc" class="btn btn-secondaire">Annuler</button>
+      <button id="btn-confirmer-stock-dlc" class="btn btn-principal">Enregistrer</button>
+    </div>
+  </div>
 </div>
 
 <script src="lib/xlsx.full.min.js"></script>
