@@ -77,8 +77,13 @@ async function remplacerCatalogue(nouveauxArticles) {
   store.clear();
 
   for (const art of nouveauxArticles) {
-    if (ancienneMap.has(art.codeArticle)) misAJour++;
-    else ajoutes++;
+    const ancien = ancienneMap.get(art.codeArticle);
+    if (ancien) {
+      misAJour++;
+      if (ancien.codeBarre) art.codeBarre = ancien.codeBarre; // conservé lors du ré-import
+    } else {
+      ajoutes++;
+    }
     store.put(art);
   }
 
@@ -120,7 +125,7 @@ async function compterParCle() {
   return compte;
 }
 
-async function ajouterAffectation({ codeArticle, allee, facade, etage, cellule }) {
+async function ajouterAffectation({ codeArticle, allee, facade, etage, cellule, stockReel = null, dlc = null }) {
   const cle = cleEmplacement({ allee, facade, etage, cellule });
   const existantes = await getAffectationsParCellule(cle);
   const ordreMax = existantes.reduce((max, a) => Math.max(max, a.ordre), -1);
@@ -134,8 +139,8 @@ async function ajouterAffectation({ codeArticle, allee, facade, etage, cellule }
     cellule: Number(cellule),
     cle,
     ordre: ordreMax + 1,
-    stockReel: null, // facultatif, renseignable à tout moment (voir modifierStockDLC)
-    dlc: null,       // facultatif, format 'YYYY-MM-DD'
+    stockReel: stockReel === null || stockReel === undefined || stockReel === '' ? null : Number(stockReel), // facultatif
+    dlc: dlc || null, // facultatif, format 'YYYY-MM-DD'
   };
 
   const tx = await _transaction(['affectations'], 'readwrite');
@@ -214,6 +219,27 @@ async function modifierStockDLC(id, { stockReel, dlc }) {
   store.put(affectation);
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve(affectation);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/**
+ * Met à jour le code-barres d'un article du catalogue. Le code-barres est un attribut
+ * de l'ARTICLE (comme la désignation ou le rayon), pas de l'occurrence : il est donc
+ * automatiquement partagé par tous les emplacements où cet article est enregistré, et
+ * toute modification se répercute immédiatement partout.
+ */
+async function modifierCodeBarreArticle(codeArticle, codeBarre) {
+  const tx = await _transaction(['articles'], 'readwrite');
+  const store = tx.objectStore('articles');
+  const article = await _promesseRequete(store.get(codeArticle));
+  if (!article) throw new Error('Article introuvable');
+
+  article.codeBarre = codeBarre ? String(codeBarre).trim() : null;
+
+  store.put(article);
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve(article);
     tx.onerror = () => reject(tx.error);
   });
 }

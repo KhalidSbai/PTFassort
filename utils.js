@@ -16,7 +16,7 @@ function cleEmplacement({ allee, facade, etage, cellule }) {
 
 /** Libellé complet et lisible d'un emplacement (utilisé dans les titres) */
 function libelleEmplacement({ allee, facade, etage, cellule }) {
-  const lignes = [`Allée ${allee}`, `Façade ${facade}`];
+  const lignes = [`Zone ${allee}`, `Façade ${facade}`];
   if (facade !== 'Sol') lignes.push(`Étage ${etage}`);
   lignes.push(`Cellule ${zeroPad(cellule)}`);
   return lignes.join(' — ');
@@ -24,7 +24,7 @@ function libelleEmplacement({ allee, facade, etage, cellule }) {
 
 /** Libellé d'une zone (allée/façade/étage) sans référence à une cellule précise */
 function libelleZone({ allee, facade, etage }) {
-  const lignes = [`Allée ${allee}`, `Façade ${facade}`];
+  const lignes = [`Zone ${allee}`, `Façade ${facade}`];
   if (facade !== 'Sol') lignes.push(`Étage ${etage}`);
   return lignes.join(' — ');
 }
@@ -32,7 +32,7 @@ function libelleZone({ allee, facade, etage }) {
 /** Libellé court d'un emplacement (utilisé dans l'export Excel / listes compactes) */
 function libelleEmplacementCourt({ allee, facade, etage, cellule }) {
   const etageTxt = facade === 'Sol' ? '-' : etage;
-  return `A${allee} ${facade} É${etageTxt} C${zeroPad(cellule)}`;
+  return `Z${allee} ${facade} É${etageTxt} C${zeroPad(cellule)}`;
 }
 
 /** Retourne un tableau [1..18] : numéros de cellules d'un étage/sol */

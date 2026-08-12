@@ -49,19 +49,22 @@ Ordre de chargement des scripts dans `index.html` (important si on ajoute du cod
 Un emplacement est donc défini par : `{ allee, facade, etage, cellule }`.
 La clé unique interne est générée par `cleEmplacement()` dans `utils.js`, format : `"allee-facade-etage-cellule"` (étage = `0` si Sol).
 
+> **Note de terminologie** : le champ interne s'appelle toujours `allee` dans le code et la base IndexedDB (pour ne pas casser les données déjà enregistrées), mais **tout ce qui est affiché à l'utilisateur dit "Zone"** (ex. "Zone 2 — Façade Gauche — Étage 3 — Cellule 12", colonne Excel "Zone", libellé court "Z2 Gauche É3 C12"). Si le vocabulaire interne doit lui aussi changer un jour, il faudrait renommer `allee` partout (HTML, JS, IndexedDB) en une seule passe cohérente — non fait ici pour rester rétrocompatible avec les données déjà sauvegardées.
+
 ## 5. Modèle de données (IndexedDB)
 
 Base : `cellules-entrepot-db`, version 1 (voir `db.js`).
 
 ### Store `articles` (keyPath: `codeArticle`)
-Le catalogue théorique complet, remplacé à chaque import du fichier théorique.
+Le catalogue théorique complet, remplacé à chaque import du fichier théorique (le champ `codeBarre` est conservé lors du remplacement, voir `remplacerCatalogue()`).
 ```js
 {
   codeArticle: string,     // identifiant unique de l'article
   designation: string,
   stockTheorique: number,
   rayon: string,
-  famille: string          // '' si non fourni
+  famille: string,         // '' si non fourni
+  codeBarre: string | null // facultatif, saisi/modifié à tout moment via la modale 🏷️, partagé par toutes les occurrences de cet article
 }
 ```
 
@@ -77,8 +80,8 @@ Une ligne = une occurrence d'un article placé dans une cellule (les doublons so
   cellule: number,          // 1 à 18
   cle: string,              // cleEmplacement() — sert à l'index 'parCellule'
   ordre: number,            // position dans la cellule, pour le glisser-déposer
-  stockReel: number | null, // facultatif, saisi/modifié à tout moment via la modale 🏷️
-  dlc: string | null        // facultatif, format 'YYYY-MM-DD'
+  stockReel: number | null, // facultatif, propre à cette occurrence, saisi/modifié à tout moment via la modale 🏷️
+  dlc: string | null        // facultatif, propre à cette occurrence, format 'YYYY-MM-DD'
 }
 ```
 
@@ -93,8 +96,10 @@ Une ligne = une occurrence d'un article placé dans une cellule (les doublons so
 7. **Recherche par mots-clés indépendants** : chaque mot tapé doit se retrouver dans le code article ou la désignation, sans tenir compte de l'ordre ni des mots intercalés (ex. "huile 5l" ≡ "5l huile"). Voir `correspondMotsCles()` dans `utils.js`.
 8. **Filtres rayon/famille désactivés par défaut et mémorisés** : les chips ne sont **pas** cochées au départ (aucune restriction, tous les articles sortent). Dès qu'une chip est cochée, elle **reste cochée d'une cellule à l'autre** (l'état n'est plus réinitialisé à chaque ouverture de cellule). L'état persiste dans `etat.rayonsCoches` / `etat.famillesCoches` pour toute la session, et n'est nettoyé des valeurs devenues invalides qu'après un import du catalogue ou une restauration de sauvegarde.
 9. **Seuls les articles encore en stock sont proposés à l'ajout** : `rechercherArticles()` (et les chips de rayon/famille) dans `search.js` ne portent que sur les articles dont `stockTheorique > 0`, pour ne pas encombrer la recherche avec des articles qui n'ont plus de stock théorique. Un article à 0 reste néanmoins visible partout où il a déjà été placé (détail de cellule, Vue par zone, export Excel) — seule la liste de *nouveaux* articles proposés à l'ajout est filtrée.
-10. **Stock réel et DLC sont facultatifs, par occurrence, modifiables à tout moment** : ce sont des champs `stockReel` / `dlc` sur chaque affectation (pas sur l'article du catalogue), jamais demandés à l'ajout. Voir `modifierStockDLC()` dans `db.js` et le bouton 🏷️ sur chaque ligne d'article dans `ui.js`.
+10. **Stock et DLC sont facultatifs, par occurrence** ; **le code-barres est facultatif, par article (partagé)** — tous modifiables à tout moment, jamais demandés à l'ajout. `stockReel` et `dlc` sont des champs sur chaque *affectation* (propres à une palette précise). `codeBarre` est un champ sur l'*article* du catalogue (comme la désignation ou le rayon) : il est donc automatiquement le même pour toutes les occurrences d'un même code article, et le modifier depuis n'importe quelle occurrence le met à jour partout instantanément. Il est distinct du "Code article" lui-même (ex : l'EAN réel imprimé sur la palette peut différer de la référence interne). Un ré-import du fichier théorique conserve les codes-barres déjà saisis (voir `remplacerCatalogue()` dans `db.js`). Voir `modifierStockDLC()` (occurrence) et `modifierCodeBarreArticle()` (article) dans `db.js`, et le bouton 🏷️ sur chaque ligne d'article dans `ui.js`.
 11. **Suppression en masse par zone** : depuis l'écran "Vue" (par zone), un bouton "🗑️ Vider" à chaque niveau (allée, façade, étage, cellule) supprime en une fois toutes les affectations correspondantes, après confirmation. Voir `supprimerAffectationsParCritere()` dans `db.js` et `viderParCritere()` dans `ui.js`.
+12. **Étiquettes DLC imprimables (PDF)** : dans l'écran "Vue", une case à cocher sur chaque zone/façade/étage/cellule/article sélectionne tous les articles en dessous (`etat.selectionEtiquettes`, un `Set` d'ids d'affectations). Une barre flottante "🖨️ Générer PDF" génère **une page A4 paysage par occurrence sélectionnée** (pas par article unique — chaque palette a sa propre page, car DLC/quantité sont propres à l'occurrence, et le code-barres est propre à l'article) : DLC en très grand en haut (format `MM/AAAA`, zone haute nettement plus grande que le bas — `flex: 1.9`, police en `vw` pour occuper un maximum de largeur/hauteur), puis en bas **3 colonnes égales** — Code article en grand (avec le mini-libellé "Code" au-dessus), Quantité en grand (mini-libellé "Quantité" au-dessus, `—` si non renseignée), et le reste des infos disponibles (désignation, code-barres, emplacement résumé via `libelleEmplacementCourt()`, rayon) en petite police, uniquement les champs renseignés. Marges de page réduites (`@page { margin: 8mm }`) pour laisser un maximum de place au contenu. Implémenté avec `window.print()` et une mise en page `@media print` dans `style.css` — pas de bibliothèque PDF, l'utilisateur choisit "Enregistrer en PDF" dans la fenêtre d'impression du navigateur (fonctionne aussi sur mobile). Voir `genererPDFEtiquettes()` dans `ui.js`.
+13. **Ajout massif d'articles par CSV, dans une zone déjà sélectionnée** : sur l'écran de la grille des 18 cellules (`panel-cellules`), le bouton "📥 Importer un CSV" lit un fichier avec les colonnes strictes `Code-barre` (facultatif), `Code article`, `Case` (1 à 18), `Quantité` (facultatif), `DLC` (facultatif). Chaque ligne valide crée une **nouvelle occurrence** (doublons toujours autorisés, règle 2) dans la zone déjà choisie (`allee`/`facade`/`etage` viennent de `etat.emplacement`, jamais du fichier). Une ligne est **ignorée individuellement** (pas de rejet global) si le code article n'existe pas dans le catalogue ou si la case est hors de 1-18 ; le résumé après import liste les lignes ignorées et leur raison. Le code-barre, s'il est fourni, est écrit sur l'article du catalogue (partagé, voir règle 10), pas sur l'occurrence. La DLC accepte une date Excel réelle, `JJ/MM/AAAA` ou `AAAA-MM-JJ` (normalisée par `normaliserDLCImport()`). Voir `importerAjoutCellulesParCSV()` dans `import.js` et `initImportCSVCellules()` dans `ui.js`.
 
 ## 7. Décisions prises suite aux clarifications (importantes pour la cohérence)
 
@@ -108,9 +113,9 @@ Le cahier des charges original laissait 3 points ambigus ; voici les décisions 
 
 - Écran unique en 4 "panneaux" qui s'affichent/masquent (pas de routing) :
   1. `panel-emplacement` : sélection allée/façade/étage
-  2. `panel-cellules` : grille des 18 cellules avec compteur d'articles
+  2. `panel-cellules` : grille des 18 cellules avec compteur d'articles, plus un bouton "📥 Importer un CSV" (+ "❓" d'aide) pour ajouter des articles en masse dans cette zone (voir règle 13) sans passer par la recherche manuelle.
   3. `panel-cellule-detail` : contenu d'une cellule (recherche, filtres, liste réordonnable, badge stock/DLC par article)
-  4. `panel-vue-zone` : **vue de consultation** (bouton "👁️ Vue" dans l'en-tête) — liste en lecture seule de tous les articles enregistrés, groupés en **Allée > Façade > Étage > Cellule**, avec un filtre par allée, un bouton "🗑️ Vider toute cette allée", **un bouton "🗑️ Vider" à chaque niveau du groupement** (allée, façade, étage, cellule — suppression en masse avec confirmation), et une barre de recherche (code ou désignation, mêmes mots-clés indépendants que l'écran de cellule — voir `correspondMotsCles()` dans `utils.js`) pour retrouver rapidement où se trouve un article donné. Utilise le même ordre de tri que l'export Excel (`trierAffectationsPourAffichage()` dans `export.js`). Le bouton "← Retour" restaure l'écran précédent (grille ou détail de cellule selon le contexte).
+  4. `panel-vue-zone` : **vue de consultation** (bouton "👁️ Vue" dans l'en-tête) — liste en lecture seule de tous les articles enregistrés, groupés en **Allée > Façade > Étage > Cellule**, avec un filtre par allée, un bouton "🗑️ Vider toute cette allée", **un bouton "🗑️ Vider" à chaque niveau du groupement** (allée, façade, étage, cellule — suppression en masse avec confirmation), **une case à cocher à chaque niveau** (sélection en cascade pour l'impression d'étiquettes, voir point 12 ci-dessus), et une barre de recherche (code ou désignation, mêmes mots-clés indépendants que l'écran de cellule — voir `correspondMotsCles()` dans `utils.js`) pour retrouver rapidement où se trouve un article donné. Utilise le même ordre de tri que l'export Excel (`trierAffectationsPourAffichage()` dans `export.js`). Le bouton "← Retour" restaure l'écran précédent (grille ou détail de cellule selon le contexte).
 - **Bouton "🏠 Accueil"** dans l'en-tête (`allerAccueil()` dans `ui.js`) : réinitialise la sélection d'emplacement et revient à l'écran de départ, depuis n'importe quel écran.
 - **Bouton "❓ Aide"** dans l'en-tête, à côté d'Import : ouvre une modale (`#modale-aide-import`) qui explique la structure attendue du fichier théorique (colonnes, ordre, exemple) et propose un bouton "Télécharger un exemple" qui génère un `.xlsx` modèle prêt à remplir (`telechargerModeleImport()` dans `export.js`).
 - Une **modale** (`#modale-deplacer`) pour choisir la cellule de destination lors d'un déplacement.

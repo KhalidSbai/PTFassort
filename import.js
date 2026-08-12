@@ -44,6 +44,7 @@ function construireArticles(lignes, aFamille) {
       stockTheorique: Number(ligne[2]) || 0,
       rayon: String(ligne[3] ?? '').trim(),
       famille: aFamille ? String(ligne[4] ?? '').trim() : '',
+      codeBarre: null, // sera préservé automatiquement lors d'un ré-import si déjà renseigné (voir remplacerCatalogue)
     });
   }
   return articles;
@@ -58,7 +59,7 @@ function lireFeuilleFichier(fichier) {
     lecteur.onload = (evt) => {
       try {
         const donnees = new Uint8Array(evt.target.result);
-        const classeur = XLSX.read(donnees, { type: 'array' });
+        const classeur = XLSX.read(donnees, { type: 'array', cellDates: true });
         const premiereFeuille = classeur.Sheets[classeur.SheetNames[0]];
         const lignes = XLSX.utils.sheet_to_json(premiereFeuille, { header: 1, defval: '' });
         resolve(lignes);
@@ -93,6 +94,111 @@ async function importerEtatTheorique(fichier) {
   }
 
   const resultat = await remplacerCatalogue(articles);
+  await rafraichirCacheArticles();
+  return resultat;
+}
+
+// ---------- Import CSV : ajout massif d'articles dans une zone (par étage) ----------
+
+const COLONNES_AJOUT_CELLULES = ['Code-barre', 'Code article', 'Case', 'Quantité', 'DLC'];
+
+/** Vérifie que les en-têtes du CSV d'ajout massif correspondent exactement (orthographe + ordre) */
+function validerEntetesAjoutCellules(entetes) {
+  const nettoyees = entetes.map((e) => String(e ?? '').trim());
+  for (let i = 0; i < COLONNES_AJOUT_CELLULES.length; i++) {
+    if (nettoyees[i] !== COLONNES_AJOUT_CELLULES[i]) {
+      return {
+        valide: false,
+        erreur: `Colonne ${i + 1} incorrecte : attendu "${COLONNES_AJOUT_CELLULES[i]}", trouvé "${nettoyees[i] || '(vide)'}".`,
+      };
+    }
+  }
+  return { valide: true };
+}
+
+/** Normalise une valeur de DLC venant du fichier (date Excel, texte JJ/MM/AAAA, ou déjà AAAA-MM-JJ) */
+function normaliserDLCImport(valeur) {
+  if (valeur === null || valeur === undefined || valeur === '') return null;
+  if (valeur instanceof Date && !isNaN(valeur)) return valeur.toISOString().slice(0, 10);
+
+  const texte = String(valeur).trim();
+  if (!texte) return null;
+
+  const matchJourMoisAnnee = texte.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (matchJourMoisAnnee) {
+    const [, jour, mois, annee] = matchJourMoisAnnee;
+    return `${annee}-${mois.padStart(2, '0')}-${jour.padStart(2, '0')}`;
+  }
+
+  return texte; // suppose déjà au format AAAA-MM-JJ
+}
+
+/**
+ * Importe un CSV/Excel listant des articles à ajouter directement dans les cellules
+ * d'une zone déjà sélectionnée (allée/façade/étage), colonne "Case" = numéro de cellule
+ * (1 à 18). Quantité et DLC peuvent être vides. Le code-barre, s'il est fourni, est
+ * enregistré sur l'article du catalogue (partagé, voir modifierCodeBarreArticle).
+ * Chaque ligne valide crée une NOUVELLE occurrence (les doublons restent autorisés).
+ */
+async function importerAjoutCellulesParCSV(fichier, zone) {
+  const lignes = await lireFeuilleFichier(fichier);
+  if (!lignes.length) {
+    throw new Error("Le fichier est vide.");
+  }
+
+  const validation = validerEntetesAjoutCellules(lignes[0]);
+  if (!validation.valide) {
+    throw new Error(validation.erreur);
+  }
+
+  const resultat = { ajoutes: 0, ignores: [] };
+
+  for (let i = 1; i < lignes.length; i++) {
+    const ligne = lignes[i];
+    const codeBarre = String(ligne[0] ?? '').trim();
+    const codeArticle = String(ligne[1] ?? '').trim();
+    const caseTexte = String(ligne[2] ?? '').trim();
+    const quantiteTexte = String(ligne[3] ?? '').trim();
+    const dlc = normaliserDLCImport(ligne[4]);
+
+    if (!codeArticle && !caseTexte) continue; // ligne complètement vide, ignorée silencieusement
+
+    const numeroLigne = i + 1;
+
+    if (!codeArticle) {
+      resultat.ignores.push(`Ligne ${numeroLigne} : code article manquant`);
+      continue;
+    }
+
+    const cellule = Number(caseTexte);
+    if (!Number.isInteger(cellule) || cellule < 1 || cellule > 18) {
+      resultat.ignores.push(`Ligne ${numeroLigne} : case "${caseTexte}" invalide (doit être un nombre entre 1 et 18)`);
+      continue;
+    }
+
+    const article = await getArticleByCode(codeArticle);
+    if (!article) {
+      resultat.ignores.push(`Ligne ${numeroLigne} : code article "${codeArticle}" introuvable dans le catalogue`);
+      continue;
+    }
+
+    await ajouterAffectation({
+      codeArticle,
+      allee: zone.allee,
+      facade: zone.facade,
+      etage: zone.etage,
+      cellule,
+      stockReel: quantiteTexte === '' ? null : Number(quantiteTexte),
+      dlc,
+    });
+
+    if (codeBarre) {
+      await modifierCodeBarreArticle(codeArticle, codeBarre);
+    }
+
+    resultat.ajoutes++;
+  }
+
   await rafraichirCacheArticles();
   return resultat;
 }

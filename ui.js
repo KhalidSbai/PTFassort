@@ -8,6 +8,7 @@ const etat = {
   rayonsCoches: new Set(),
   famillesCoches: new Set(),
   sortableInstance: null,
+  selectionEtiquettes: new Set(), // ids d'affectations cochées dans la Vue, pour l'impression des étiquettes DLC
 };
 
 // ---------- Écran 1 : choix de l'emplacement ----------
@@ -173,17 +174,17 @@ async function renderListeArticlesCellule() {
         <div class="article-code">${aff.codeArticle}</div>
         <div class="article-designation">${art.designation}</div>
         <div class="article-meta">${art.rayon}${art.famille ? ' · ' + art.famille : ''}</div>
-        ${libelleBadgeStockDLC(aff)}
+        ${libelleBadgeStockDLC(aff, art)}
       </div>
       <div class="article-actions">
-        <button class="icone-btn btn-stock-dlc" title="Stock / DLC">🏷️</button>
+        <button class="icone-btn btn-stock-dlc" title="Stock / DLC / Code-barres">🏷️</button>
         <button class="icone-btn btn-deplacer" title="Déplacer">↔️</button>
         <button class="icone-btn btn-supprimer" title="Supprimer">🗑️</button>
       </div>
     `;
     li.querySelector('.btn-supprimer').addEventListener('click', () => supprimerArticleCellule(aff.id));
     li.querySelector('.btn-deplacer').addEventListener('click', () => ouvrirModaleDeplacer(aff.id));
-    li.querySelector('.btn-stock-dlc').addEventListener('click', () => ouvrirModaleStockDLC(aff));
+    li.querySelector('.btn-stock-dlc').addEventListener('click', () => ouvrirModaleStockDLC(aff, art));
     liste.appendChild(li);
   });
 
@@ -205,25 +206,30 @@ async function supprimerArticleCellule(id) {
   await renderListeArticlesCellule();
 }
 
-/** Construit le petit badge "Stock: x · DLC: date" affiché sous un article, si renseigné */
-function libelleBadgeStockDLC(aff) {
-  if (aff.stockReel === null && !aff.dlc) return '';
+/** Construit le petit badge "Stock: x · DLC: date · CB: y" affiché sous un article, si renseigné.
+ *  Stock/DLC viennent de l'occurrence (aff), le code-barres vient de l'article du catalogue (art). */
+function libelleBadgeStockDLC(aff, art) {
+  if (aff.stockReel === null && !aff.dlc && !art?.codeBarre) return '';
   const parties = [];
   if (aff.stockReel !== null) parties.push(`Stock : ${aff.stockReel}`);
   if (aff.dlc) parties.push(`DLC : ${aff.dlc}`);
+  if (art?.codeBarre) parties.push(`CB : ${art.codeBarre}`);
   const perime = aff.dlc && aff.dlc < new Date().toISOString().slice(0, 10);
   return `<span class="badge-stock-dlc${perime ? ' perime' : ''}">${parties.join(' · ')}</span>`;
 }
 
-// ---------- Modale Stock / DLC ----------
+// ---------- Modale Infos complémentaires (Stock/DLC par occurrence, Code-barres par article) ----------
 
 let _idStockDLC = null;
+let _codeArticleStockDLC = null;
 
-function ouvrirModaleStockDLC(aff) {
+function ouvrirModaleStockDLC(aff, art) {
   _idStockDLC = aff.id;
-  document.getElementById('stock-dlc-titre').textContent = `Stock / DLC — ${aff.codeArticle}`;
+  _codeArticleStockDLC = aff.codeArticle;
+  document.getElementById('stock-dlc-titre').textContent = `Infos complémentaires — ${aff.codeArticle}`;
   document.getElementById('input-stock-reel').value = aff.stockReel ?? '';
   document.getElementById('input-dlc').value = aff.dlc || '';
+  document.getElementById('input-code-barre').value = art?.codeBarre || '';
   document.getElementById('modale-stock-dlc').classList.remove('hidden');
 }
 
@@ -234,9 +240,15 @@ function initModaleStockDLC() {
   document.getElementById('btn-confirmer-stock-dlc').addEventListener('click', async () => {
     const stockReel = document.getElementById('input-stock-reel').value;
     const dlc = document.getElementById('input-dlc').value;
-    await modifierStockDLC(_idStockDLC, { stockReel, dlc });
+    const codeBarre = document.getElementById('input-code-barre').value;
+    // Stock/DLC = propres à cette occurrence ; code-barres = partagé par tout le catalogue (même codeArticle)
+    await Promise.all([
+      modifierStockDLC(_idStockDLC, { stockReel, dlc }),
+      modifierCodeBarreArticle(_codeArticleStockDLC, codeBarre),
+    ]);
+    await rafraichirCacheArticles();
     document.getElementById('modale-stock-dlc').classList.add('hidden');
-    afficherToast('Stock / DLC enregistré', 'succes');
+    afficherToast('Informations enregistrées', 'succes');
     await renderListeArticlesCellule();
   });
 }
@@ -310,6 +322,40 @@ function initAideImport() {
   document.getElementById('btn-telecharger-modele').addEventListener('click', telechargerModeleImport);
 }
 
+// ---------- Import CSV : ajout massif d'articles dans la zone affichée ----------
+
+function initImportCSVCellules() {
+  const inputFichier = document.getElementById('file-import-csv-cellules');
+
+  document.getElementById('btn-import-csv-cellules').addEventListener('click', () => inputFichier.click());
+
+  inputFichier.addEventListener('change', async (e) => {
+    const fichier = e.target.files[0];
+    e.target.value = '';
+    if (!fichier) return;
+
+    try {
+      const resultat = await importerAjoutCellulesParCSV(fichier, etat.emplacement);
+      let message = `${resultat.ajoutes} article(s) ajouté(s) à la zone.`;
+      if (resultat.ignores.length) {
+        message += ` ⚠️ ${resultat.ignores.length} ligne(s) ignorée(s) : ${resultat.ignores.slice(0, 3).join(' | ')}${resultat.ignores.length > 3 ? '…' : ''}`;
+      }
+      afficherToast(message, resultat.ignores.length ? 'erreur' : 'succes', 6000);
+      await afficherGrilleCellules();
+    } catch (err) {
+      afficherToast(err.message, 'erreur', 5000);
+    }
+  });
+
+  document.getElementById('btn-aide-import-csv-cellules').addEventListener('click', () => {
+    document.getElementById('modale-aide-import-csv-cellules').classList.remove('hidden');
+  });
+  document.getElementById('btn-fermer-aide-import-csv-cellules').addEventListener('click', () => {
+    document.getElementById('modale-aide-import-csv-cellules').classList.add('hidden');
+  });
+  document.getElementById('btn-telecharger-modele-cellules').addEventListener('click', telechargerModeleAjoutCellules);
+}
+
 // ---------- Vue de consultation : articles enregistrés par zone ----------
 
 function masquerPanelsPrincipaux() {
@@ -322,11 +368,13 @@ async function afficherVueParZone() {
   masquerPanelsPrincipaux();
   document.getElementById('panel-vue-zone').classList.remove('hidden');
   document.getElementById('input-recherche-vue').value = '';
+  etat.selectionEtiquettes = new Set();
   await renderContenuVueZone();
 }
 
 function retourDepuisVueZone() {
   document.getElementById('panel-vue-zone').classList.add('hidden');
+  document.getElementById('barre-impression').classList.add('hidden');
   document.getElementById('panel-emplacement').classList.remove('hidden');
   if (etat.celluleOuverte) {
     document.getElementById('panel-cellule-detail').classList.remove('hidden');
@@ -356,16 +404,20 @@ async function renderContenuVueZone() {
   }
   liste = trierAffectationsPourAffichage(liste);
 
+  majBarreImpression();
+
   const conteneur = document.getElementById('contenu-vue-zone');
   conteneur.innerHTML = '';
 
   if (!liste.length) {
-    const raison = texteRecherche.trim() ? ' pour cette recherche' : alleeFiltre ? ' pour cette allée' : '';
+    const raison = texteRecherche.trim() ? ' pour cette recherche' : alleeFiltre ? ' pour cette zone' : '';
     conteneur.innerHTML = `<p class="message-vide">Aucun article enregistré${raison}.</p>`;
     return;
   }
 
-  // Groupement imbriqué : Allée > Façade > Étage > Cellule, chaque niveau avec son bouton "vider"
+  // Groupement imbriqué : Allée > Façade > Étage > Cellule, chaque niveau avec sa case
+  // à cocher (sélectionne tous les articles en dessous, pour l'impression des étiquettes)
+  // et son bouton "vider" (suppression en masse).
   let alleeDiv = null, alleeActuelle = null;
   let facadeDiv = null, facadeActuelle = null;
   let etageDiv = null, etageActuelle = null;
@@ -383,29 +435,47 @@ async function renderContenuVueZone() {
     return btn;
   };
 
+  const caseSelection = (ids) => {
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.className = 'case-select';
+    input.checked = ids.length > 0 && ids.every((id) => etat.selectionEtiquettes.has(id));
+    input.addEventListener('change', (e) => {
+      if (e.target.checked) ids.forEach((id) => etat.selectionEtiquettes.add(id));
+      else ids.forEach((id) => etat.selectionEtiquettes.delete(id));
+      renderContenuVueZone();
+    });
+    return input;
+  };
+
+  const construireTitre = (classe, texte, ids, boutonViderEl) => {
+    const titre = document.createElement('div');
+    titre.className = classe;
+    const groupeGauche = document.createElement('span');
+    groupeGauche.appendChild(caseSelection(ids));
+    groupeGauche.appendChild(document.createTextNode(texte));
+    titre.appendChild(groupeGauche);
+    titre.appendChild(boutonViderEl);
+    return titre;
+  };
+
   liste.forEach((aff) => {
     if (aff.allee !== alleeActuelle) {
       alleeActuelle = aff.allee;
+      const idsAllee = liste.filter((a) => a.allee === aff.allee).map((a) => a.id);
       alleeDiv = document.createElement('div');
       alleeDiv.className = 'zone-carte';
-      const titre = document.createElement('div');
-      titre.className = 'zone-titre';
-      titre.innerHTML = `<span>Allée ${aff.allee}</span>`;
-      titre.appendChild(boutonVider(`l'allée ${aff.allee}`, { allee: aff.allee }));
-      alleeDiv.appendChild(titre);
+      alleeDiv.appendChild(construireTitre('zone-titre', `Zone ${aff.allee}`, idsAllee, boutonVider(`la zone ${aff.allee}`, { allee: aff.allee })));
       conteneur.appendChild(alleeDiv);
       facadeActuelle = null;
     }
 
     if (aff.facade !== facadeActuelle) {
       facadeActuelle = aff.facade;
+      const idsFacade = liste.filter((a) => a.allee === aff.allee && a.facade === aff.facade).map((a) => a.id);
       facadeDiv = document.createElement('div');
       facadeDiv.className = 'facade-groupe';
-      const titre = document.createElement('div');
-      titre.className = 'facade-titre';
-      titre.innerHTML = `<span>Façade ${aff.facade}</span>`;
-      titre.appendChild(boutonVider(`la façade ${aff.facade} (allée ${aff.allee})`, { allee: aff.allee, facade: aff.facade }));
-      facadeDiv.appendChild(titre);
+      facadeDiv.appendChild(construireTitre('facade-titre', `Façade ${aff.facade}`, idsFacade, boutonVider(`la façade ${aff.facade} (zone ${aff.allee})`, { allee: aff.allee, facade: aff.facade })));
       alleeDiv.appendChild(facadeDiv);
       etageActuelle = null;
     }
@@ -416,16 +486,13 @@ async function renderContenuVueZone() {
       if (aff.facade === 'Sol') {
         etageDiv = facadeDiv; // pas de sous-niveau étage pour le Sol
       } else {
+        const idsEtage = liste.filter((a) => a.allee === aff.allee && a.facade === aff.facade && (a.etage ?? 0) === etageCle).map((a) => a.id);
         etageDiv = document.createElement('div');
         etageDiv.className = 'etage-groupe';
-        const titre = document.createElement('div');
-        titre.className = 'etage-titre';
-        titre.innerHTML = `<span>Étage ${aff.etage}</span>`;
-        titre.appendChild(boutonVider(
-          `l'étage ${aff.etage} (allée ${aff.allee}, façade ${aff.facade})`,
+        etageDiv.appendChild(construireTitre('etage-titre', `Étage ${aff.etage}`, idsEtage, boutonVider(
+          `l'étage ${aff.etage} (zone ${aff.allee}, façade ${aff.facade})`,
           { allee: aff.allee, facade: aff.facade, etage: aff.etage }
-        ));
-        etageDiv.appendChild(titre);
+        )));
         facadeDiv.appendChild(etageDiv);
       }
       celluleActuelle = null;
@@ -433,25 +500,101 @@ async function renderContenuVueZone() {
 
     if (aff.cellule !== celluleActuelle) {
       celluleActuelle = aff.cellule;
+      const idsCellule = liste.filter((a) => a.allee === aff.allee && a.facade === aff.facade && (a.etage ?? 0) === etageCle && a.cellule === aff.cellule).map((a) => a.id);
       celluleDiv = document.createElement('div');
       celluleDiv.className = 'zone-cellule-groupe';
-      const titre = document.createElement('div');
-      titre.className = 'zone-cellule-titre';
-      titre.innerHTML = `<span>Cellule ${zeroPad(aff.cellule)}</span>`;
-      titre.appendChild(boutonVider(
-        `la cellule ${zeroPad(aff.cellule)} (allée ${aff.allee}, façade ${aff.facade}${aff.facade !== 'Sol' ? ', étage ' + aff.etage : ''})`,
+      celluleDiv.appendChild(construireTitre('zone-cellule-titre', `Cellule ${zeroPad(aff.cellule)}`, idsCellule, boutonVider(
+        `la cellule ${zeroPad(aff.cellule)} (zone ${aff.allee}, façade ${aff.facade}${aff.facade !== 'Sol' ? ', étage ' + aff.etage : ''})`,
         { allee: aff.allee, facade: aff.facade, etage: aff.facade === 'Sol' ? null : aff.etage, cellule: aff.cellule }
-      ));
-      celluleDiv.appendChild(titre);
+      )));
       etageDiv.appendChild(celluleDiv);
     }
 
     const art = parCode.get(aff.codeArticle) || { designation: '(article introuvable)', rayon: '', famille: '' };
     const ligne = document.createElement('div');
     ligne.className = 'zone-ligne-article';
-    ligne.innerHTML = `<span class="code">${aff.codeArticle} — ${art.designation}</span><span class="meta">${art.rayon}${art.famille ? ' · ' + art.famille : ''}</span>`;
+    ligne.appendChild(caseSelection([aff.id]));
+    const code = document.createElement('span');
+    code.className = 'code';
+    code.textContent = `${aff.codeArticle} — ${art.designation}`;
+    const meta = document.createElement('span');
+    meta.className = 'meta';
+    meta.textContent = `${art.rayon}${art.famille ? ' · ' + art.famille : ''}`;
+    ligne.appendChild(code);
+    ligne.appendChild(meta);
     celluleDiv.appendChild(ligne);
   });
+}
+
+/** Met à jour le texte et la visibilité de la barre flottante de sélection pour l'impression */
+function majBarreImpression() {
+  const barre = document.getElementById('barre-impression');
+  const n = etat.selectionEtiquettes.size;
+  document.getElementById('compte-selection').textContent = `${n} article(s) sélectionné(s)`;
+  barre.classList.toggle('hidden', n === 0);
+}
+
+/** Convertit une DLC 'YYYY-MM-DD' en format court bien visible 'MM/AAAA' */
+function formatDLCCourt(dlc) {
+  if (!dlc) return '';
+  const [annee, mois] = dlc.split('-');
+  return `${mois}/${annee}`;
+}
+
+/**
+ * Construit une page A4 paysage par occurrence sélectionnée (DLC en très grand en haut,
+ * puis en bas 3 colonnes : Code article en grand, Quantité en grand, reste des infos
+ * disponibles) et lance l'impression du navigateur (l'utilisateur choisit
+ * "Enregistrer en PDF" dans la fenêtre d'impression).
+ */
+async function genererPDFEtiquettes() {
+  const idsSelectionnes = new Set(etat.selectionEtiquettes);
+  if (!idsSelectionnes.size) {
+    afficherToast('Coche au moins un article à imprimer', 'erreur');
+    return;
+  }
+
+  const [affectations, articles] = await Promise.all([getAllAffectations(), getAllArticles()]);
+  const parCode = new Map(articles.map((a) => [a.codeArticle, a]));
+
+  let selection = affectations.filter((a) => idsSelectionnes.has(a.id));
+  selection = trierAffectationsPourAffichage(selection);
+
+  const conteneur = document.getElementById('zone-impression');
+  conteneur.innerHTML = selection.map((aff) => {
+    const art = parCode.get(aff.codeArticle) || {};
+    const quantite = aff.stockReel !== null && aff.stockReel !== undefined ? aff.stockReel : '—';
+
+    const champs = [];
+    if (art.designation) champs.push(champEtiquette('Désignation', art.designation));
+    if (art.codeBarre) champs.push(champEtiquette('Code-barres', art.codeBarre));
+    champs.push(champEtiquette('Emplacement', libelleEmplacementCourt({ allee: aff.allee, facade: aff.facade, etage: aff.etage, cellule: aff.cellule })));
+    if (art.rayon) champs.push(champEtiquette('Rayon', art.rayon));
+
+    return `
+      <div class="page-etiquette">
+        <div class="etiquette-haut">${aff.dlc ? formatDLCCourt(aff.dlc) : '—'}</div>
+        <div class="etiquette-bas">
+          <div class="etiquette-code">
+            <span class="etiquette-mini-titre">Code</span>
+            <div class="etiquette-valeur">${aff.codeArticle}</div>
+          </div>
+          <div class="etiquette-quantite">
+            <span class="etiquette-mini-titre">Quantité</span>
+            <div class="etiquette-valeur">${quantite}</div>
+          </div>
+          <div class="etiquette-details">${champs.join('')}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Laisse le DOM se mettre à jour avant d'ouvrir la fenêtre d'impression
+  requestAnimationFrame(() => window.print());
+}
+
+function champEtiquette(label, valeur) {
+  return `<div class="etiquette-champ"><span class="etiquette-label">${label}</span>${valeur}</div>`;
 }
 
 /** Supprime en masse les affectations correspondant à un critère (allée/façade/étage/cellule), avec confirmation */
@@ -538,6 +681,7 @@ function initUI() {
   initModaleDeplacer();
   initModaleStockDLC();
   initAideImport();
+  initImportCSVCellules();
   initActionsEntete();
 
   document.getElementById('btn-accueil').addEventListener('click', allerAccueil);
@@ -547,6 +691,10 @@ function initUI() {
   document.getElementById('input-recherche-vue').addEventListener('input', lancerRechercheVueZone);
   document.getElementById('btn-vider-allee').addEventListener('click', () => {
     const allee = document.getElementById('select-vue-allee').value;
-    if (allee) viderParCritere({ allee }, `toute l'allée ${allee}`);
+    if (allee) viderParCritere({ allee }, `toute la zone ${allee}`);
+  });
+  document.getElementById('btn-generer-pdf').addEventListener('click', genererPDFEtiquettes);
+  window.addEventListener('afterprint', () => {
+    document.getElementById('zone-impression').innerHTML = '';
   });
 }

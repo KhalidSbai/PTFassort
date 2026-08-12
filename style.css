@@ -98,6 +98,25 @@ main {
   font-weight: 700;
 }
 
+.toolbar-cellules {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.toolbar-cellules .btn-secondaire { flex: 1; }
+
+.btn-icon-discret {
+  background: #eef1f4;
+  border: none;
+  border-radius: 8px;
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 1rem;
+  cursor: pointer;
+  flex: none;
+}
+
 .sous-titre {
   font-size: 0.9rem;
   font-weight: 700;
@@ -465,6 +484,139 @@ select {
   margin-top: 2px;
 }
 .badge-stock-dlc.perime { color: #fff; background: var(--couleur-danger); }
+
+/* ---------- Sélection pour impression des étiquettes ---------- */
+.case-select {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  cursor: pointer;
+}
+
+.zone-titre, .facade-titre, .etage-titre, .zone-cellule-titre {
+  gap: 10px;
+}
+
+.zone-titre > span:first-of-type,
+.facade-titre > span:first-of-type,
+.etage-titre > span:first-of-type,
+.zone-cellule-titre > span:first-of-type {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zone-ligne-article {
+  align-items: center;
+}
+.zone-ligne-article .case-select { margin-right: 2px; }
+.zone-ligne-article .code { flex: 1; }
+
+.barre-impression {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 150;
+  background: var(--couleur-texte);
+  color: #fff;
+  padding: 12px var(--espace);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+}
+.barre-impression span { font-size: 0.85rem; }
+.barre-impression .btn-principal { flex: none; padding: 10px 16px; min-height: 40px; }
+
+/* ---------- Zone d'impression (étiquettes DLC) ---------- */
+#zone-impression { display: none; }
+
+@media print {
+  body > *:not(#zone-impression) { display: none !important; }
+  #zone-impression { display: block !important; }
+
+  .page-etiquette {
+    width: 100%;
+    height: 194mm; /* zone utile d'une page A4 paysage avec marges @page réduites */
+    display: flex;
+    flex-direction: column;
+    page-break-after: always;
+  }
+  .page-etiquette:last-child { page-break-after: auto; }
+
+  .etiquette-haut {
+    flex: 1.9; /* nettement plus haut que le bas, pour une DLC visible de loin */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 21vw;
+    line-height: 1;
+    font-weight: 900;
+    letter-spacing: 0;
+    padding: 0 10px;
+  }
+
+  .etiquette-bas {
+    flex: 1;
+    display: flex;
+    border-top: 3px solid #000;
+  }
+
+  .etiquette-code,
+  .etiquette-quantite {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-right: 3px solid #000;
+    padding: 4px;
+  }
+
+  .etiquette-mini-titre {
+    font-size: 16px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #444;
+    margin-bottom: 2px;
+  }
+
+  .etiquette-code .etiquette-valeur,
+  .etiquette-quantite .etiquette-valeur {
+    font-size: 9vw;
+    line-height: 1;
+    font-weight: 900;
+    word-break: break-all;
+    text-align: center;
+  }
+
+  .etiquette-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 18px;
+  }
+
+  .etiquette-champ { font-size: 14px; }
+  .etiquette-label {
+    display: block;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #444;
+  }
+}
+
+@page {
+  size: A4 landscape;
+  margin: 8mm;
+}
 
 /* ---------- Divers ---------- */
 .message-vide {

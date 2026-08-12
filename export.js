@@ -32,7 +32,7 @@ async function exporterExcel() {
   const lignes = trie.map((aff) => {
     const art = articleParCode.get(aff.codeArticle) || {};
     return {
-      'Allée': aff.allee,
+      'Zone': aff.allee,
       'Façade': aff.facade,
       'Étage': aff.facade === 'Sol' ? '-' : aff.etage,
       'Cellule': zeroPad(aff.cellule),
@@ -42,6 +42,7 @@ async function exporterExcel() {
       'Famille': art.famille || '',
       'Stock réel': aff.stockReel ?? '',
       'DLC': aff.dlc || '',
+      'Code-barres': art.codeBarre || '',
     };
   });
 
@@ -49,7 +50,7 @@ async function exporterExcel() {
   feuille['!cols'] = [
     { wch: 6 }, { wch: 9 }, { wch: 7 }, { wch: 8 },
     { wch: 14 }, { wch: 30 }, { wch: 16 }, { wch: 16 },
-    { wch: 10 }, { wch: 12 },
+    { wch: 10 }, { wch: 12 }, { wch: 16 },
   ];
 
   const classeur = XLSX.utils.book_new();
@@ -70,6 +71,20 @@ function telechargerModeleImport() {
   const classeur = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(classeur, feuille, 'Modèle import');
   XLSX.writeFile(classeur, 'modele-import-etat-theorique.xlsx');
+}
+
+/** Télécharge un fichier Excel exemple pour l'import CSV d'ajout massif d'articles dans une zone */
+function telechargerModeleAjoutCellules() {
+  const lignesExemple = [
+    { 'Code-barre': '3760012345678', 'Code article': '123456', 'Case': 5, 'Quantité': 12, 'DLC': '2027-07-01' },
+    { 'Code-barre': '', 'Code article': '789654', 'Case': 12, 'Quantité': '', 'DLC': '' },
+  ];
+  const feuille = XLSX.utils.json_to_sheet(lignesExemple);
+  feuille['!cols'] = [{ wch: 16 }, { wch: 14 }, { wch: 8 }, { wch: 10 }, { wch: 12 }];
+
+  const classeur = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(classeur, feuille, 'Modèle ajout cellules');
+  XLSX.writeFile(classeur, 'modele-ajout-articles-cellules.xlsx');
 }
 
 /** Télécharge une sauvegarde JSON complète (articles + affectations) */

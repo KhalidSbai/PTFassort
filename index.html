@@ -31,7 +31,7 @@
   <section id="panel-emplacement" class="panel">
     <h2 class="panel-title">Emplacement</h2>
     <div class="field-row">
-      <label for="select-allee">Allée</label>
+      <label for="select-allee">Zone</label>
       <select id="select-allee">
         <option value="">—</option>
         <option value="1">1</option>
@@ -66,6 +66,11 @@
   <!-- Étape 2 : grille des 18 cellules -->
   <section id="panel-cellules" class="panel hidden">
     <h2 class="panel-title" id="cellules-titre">Cellules</h2>
+    <div class="toolbar-cellules">
+      <button id="btn-import-csv-cellules" class="btn btn-secondaire">📥 Importer un CSV</button>
+      <button id="btn-aide-import-csv-cellules" class="btn btn-icon-discret" title="Comment préparer ce fichier ?">❓</button>
+    </div>
+    <input type="file" id="file-import-csv-cellules" accept=".csv,.xlsx,.xls" hidden>
     <div id="grille-cellules" class="grille-cellules"></div>
   </section>
 
@@ -90,7 +95,7 @@
     <h2 class="panel-title">Articles enregistrés par zone</h2>
 
     <div class="field-row">
-      <label for="select-vue-allee">Allée</label>
+      <label for="select-vue-allee">Zone</label>
       <select id="select-vue-allee">
         <option value="">Toutes</option>
         <option value="1">1</option>
@@ -99,7 +104,7 @@
         <option value="4">4</option>
       </select>
     </div>
-    <button id="btn-vider-allee" class="btn btn-secondaire btn-vider-allee hidden">🗑️ Vider toute cette allée</button>
+    <button id="btn-vider-allee" class="btn btn-secondaire btn-vider-allee hidden">🗑️ Vider toute cette zone</button>
 
     <input type="search" id="input-recherche-vue" placeholder="Rechercher un article (code ou désignation) pour trouver où il se trouve">
 
@@ -111,12 +116,21 @@
 
 </main>
 
+<!-- Barre flottante : sélection en cours pour l'impression des étiquettes DLC -->
+<div id="barre-impression" class="barre-impression hidden">
+  <span id="compte-selection">0 article(s) sélectionné(s)</span>
+  <button id="btn-generer-pdf" class="btn btn-principal">🖨️ Générer PDF</button>
+</div>
+
+<!-- Zone d'impression : générée dynamiquement, invisible à l'écran, uniquement visible via @media print -->
+<div id="zone-impression"></div>
+
 <!-- Modale : déplacer un article vers une autre cellule -->
 <div id="modale-deplacer" class="modale hidden">
   <div class="modale-contenu">
     <h3>Déplacer vers…</h3>
     <div class="field-row">
-      <label for="deplacer-allee">Allée</label>
+      <label for="deplacer-allee">Zone</label>
       <select id="deplacer-allee">
         <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option>
       </select>
@@ -178,10 +192,34 @@
   </div>
 </div>
 
-<!-- Modale : stock réel / DLC d'une occurrence -->
+<!-- Modale : aide pour préparer le CSV d'ajout massif d'articles dans une zone -->
+<div id="modale-aide-import-csv-cellules" class="modale hidden">
+  <div class="modale-contenu">
+    <h3>Comment préparer ce fichier ?</h3>
+    <p class="aide-texte">Ce fichier ajoute directement des articles dans les cellules de la zone actuellement sélectionnée (elle doit déjà être choisie avant l'import). Format <strong>Excel (.xlsx/.xls)</strong> ou <strong>CSV</strong>, avec exactement ces colonnes, dans cet ordre, sur la première ligne :</p>
+    <table class="aide-tableau">
+      <thead><tr><th>#</th><th>Colonne</th><th>Exemple</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Code-barre <em>(facultatif)</em></td><td>3760012345678</td></tr>
+        <tr><td>2</td><td>Code article</td><td>123456</td></tr>
+        <tr><td>3</td><td>Case</td><td>5</td></tr>
+        <tr><td>4</td><td>Quantité <em>(facultatif)</em></td><td>12</td></tr>
+        <tr><td>5</td><td>DLC <em>(facultatif)</em></td><td>2027-07-01</td></tr>
+      </tbody>
+    </table>
+    <p class="aide-texte">"Case" = numéro de cellule (1 à 18) dans la zone sélectionnée. Le code article doit déjà exister dans le catalogue (import théorique). Le code-barre, s'il est renseigné, est enregistré sur l'article et donc partagé par tous ses emplacements.</p>
+    <p class="aide-texte">⚠️ L'orthographe et l'ordre des colonnes doivent être respectés exactement. Les lignes en erreur (case invalide, article inconnu…) sont ignorées individuellement et listées dans le résumé après l'import.</p>
+    <div class="modale-actions">
+      <button id="btn-telecharger-modele-cellules" class="btn btn-secondaire">Télécharger un exemple</button>
+      <button id="btn-fermer-aide-import-csv-cellules" class="btn btn-principal">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale : stock réel / DLC / code-barres d'une occurrence -->
 <div id="modale-stock-dlc" class="modale hidden">
   <div class="modale-contenu">
-    <h3 id="stock-dlc-titre">Stock / DLC</h3>
+    <h3 id="stock-dlc-titre">Infos complémentaires</h3>
     <p class="aide-texte">Ces informations sont facultatives et peuvent être renseignées à tout moment.</p>
     <div class="field-row">
       <label for="input-stock-reel">Stock réel</label>
@@ -190,6 +228,10 @@
     <div class="field-row">
       <label for="input-dlc">DLC</label>
       <input type="date" id="input-dlc">
+    </div>
+    <div class="field-row">
+      <label for="input-code-barre">Code-barres</label>
+      <input type="text" id="input-code-barre" placeholder="Ex : 3760012345678">
     </div>
     <div class="modale-actions">
       <button id="btn-annuler-stock-dlc" class="btn btn-secondaire">Annuler</button>
