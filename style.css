@@ -56,7 +56,11 @@ button { font-family: inherit; }
 }
 
 @media (min-width: 520px) {
-  .header-actions { grid-template-columns: repeat(7, 1fr); }
+  .header-actions { grid-template-columns: repeat(4, 1fr); }
+}
+
+@media (min-width: 620px) {
+  .header-actions { grid-template-columns: repeat(8, 1fr); }
 }
 
 .btn {
@@ -440,18 +444,6 @@ select {
   white-space: nowrap;
 }
 
-.zone-ligne-article {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
-  padding: 4px 0;
-  font-size: 0.85rem;
-}
-
-.zone-ligne-article .code { font-weight: 700; }
-.zone-ligne-article .meta { color: var(--couleur-texte-att); font-size: 0.78rem; white-space: nowrap; }
-
 /* ---------- Aide import ---------- */
 .aide-texte {
   font-size: 0.85rem;
@@ -508,10 +500,33 @@ select {
 }
 
 .zone-ligne-article {
+  display: flex;
   align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 0.85rem;
 }
 .zone-ligne-article .case-select { margin-right: 2px; }
-.zone-ligne-article .code { flex: 1; }
+.zone-ligne-article .code { flex: 1; font-weight: 700; }
+.zone-ligne-article .stock {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--couleur-accent-fonce);
+  background: #eef4ff;
+  border-radius: 6px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+.zone-ligne-article .meta { color: var(--couleur-texte-att); font-size: 0.78rem; white-space: nowrap; }
+
+.icone-btn-mini {
+  background: none;
+  border: none;
+  font-size: 0.95rem;
+  padding: 4px 6px;
+  cursor: pointer;
+  flex: none;
+}
 
 .barre-impression {
   position: fixed;
@@ -552,11 +567,11 @@ select {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 21vw;
+    font-size: 23vw;
     line-height: 1;
-    font-weight: 900;
+    font-weight: 600; /* moins gras -> caractères plus fins -> encore plus grand sans déborder */
     letter-spacing: 0;
-    padding: 0 10px;
+    padding: 0 3px;
   }
 
   .etiquette-bas {
@@ -573,7 +588,7 @@ select {
     align-items: center;
     justify-content: center;
     border-right: 3px solid #000;
-    padding: 4px;
+    padding: 2px;
   }
 
   .etiquette-mini-titre {
@@ -587,9 +602,9 @@ select {
 
   .etiquette-code .etiquette-valeur,
   .etiquette-quantite .etiquette-valeur {
-    font-size: 9vw;
+    font-size: 10.5vw;
     line-height: 1;
-    font-weight: 900;
+    font-weight: 600; /* moins gras -> encore plus grand sans déborder */
     word-break: break-all;
     text-align: center;
   }
@@ -610,6 +625,17 @@ select {
     text-transform: uppercase;
     letter-spacing: 1px;
     color: #444;
+  }
+
+  .etiquette-pied {
+    flex: 0.14;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: #666;
+    border-top: 1px solid #ccc;
   }
 }
 

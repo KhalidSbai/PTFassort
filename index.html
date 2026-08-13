@@ -20,6 +20,7 @@
     <button id="btn-export-json" class="btn btn-icon" title="Exporter sauvegarde JSON">💾 Sauver</button>
     <button id="btn-import-json" class="btn btn-icon" title="Importer sauvegarde JSON">📂 Restaurer</button>
     <button id="btn-vue-zone" class="btn btn-icon" title="Voir les articles enregistrés par zone">👁️ Vue</button>
+    <button id="btn-stock-csv" class="btn btn-icon" title="Exporter le stock de chaque article en CSV">📦 Stock</button>
   </div>
   <input type="file" id="file-import-theorique" accept=".xlsx,.xls,.csv" hidden>
   <input type="file" id="file-import-json" accept=".json" hidden>
@@ -38,10 +39,12 @@
         <option value="2">2</option>
         <option value="3">3</option>
         <option value="4">4</option>
+        <option value="Table">Table</option>
       </select>
     </div>
+    <p id="note-zone-table" class="aide-texte hidden">La zone "Table" n'a ni façade, ni étage, ni cellule : c'est un espace unique où déposer des articles sans emplacement précis.</p>
 
-    <div class="field-row">
+    <div class="field-row" id="ligne-facade">
       <span class="field-label">Façade</span>
       <div class="radio-group" id="radio-facade">
         <label><input type="radio" name="facade" value="Gauche"> Gauche</label>
@@ -50,7 +53,7 @@
       </div>
     </div>
 
-    <div class="field-row">
+    <div class="field-row" id="ligne-etage">
       <label for="select-etage">Étage</label>
       <select id="select-etage">
         <option value="">—</option>
@@ -102,6 +105,7 @@
         <option value="2">2</option>
         <option value="3">3</option>
         <option value="4">4</option>
+        <option value="Table">Table</option>
       </select>
     </div>
     <button id="btn-vider-allee" class="btn btn-secondaire btn-vider-allee hidden">🗑️ Vider toute cette zone</button>
@@ -132,10 +136,10 @@
     <div class="field-row">
       <label for="deplacer-allee">Zone</label>
       <select id="deplacer-allee">
-        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option>
+        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="Table">Table</option>
       </select>
     </div>
-    <div class="field-row">
+    <div class="field-row" id="deplacer-ligne-facade">
       <span class="field-label">Façade</span>
       <div class="radio-group" id="deplacer-radio-facade">
         <label><input type="radio" name="deplacer-facade" value="Gauche" checked> Gauche</label>
@@ -143,13 +147,13 @@
         <label><input type="radio" name="deplacer-facade" value="Sol"> Sol</label>
       </div>
     </div>
-    <div class="field-row">
+    <div class="field-row" id="deplacer-ligne-etage">
       <label for="deplacer-etage">Étage</label>
       <select id="deplacer-etage">
         <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
       </select>
     </div>
-    <div class="field-row">
+    <div class="field-row" id="deplacer-ligne-cellule">
       <label for="deplacer-cellule">Cellule</label>
       <select id="deplacer-cellule"></select>
     </div>

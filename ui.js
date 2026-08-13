@@ -17,9 +17,28 @@ function initFormulaireEmplacement() {
   const selectAllee = document.getElementById('select-allee');
   const radiosFacade = document.querySelectorAll('input[name="facade"]');
   const selectEtage = document.getElementById('select-etage');
+  const ligneFacade = document.getElementById('ligne-facade');
+  const ligneEtage = document.getElementById('ligne-etage');
+  const noteTable = document.getElementById('note-zone-table');
 
   function onChangement() {
     const allee = selectAllee.value;
+
+    if (estZoneTable(allee)) {
+      ligneFacade.classList.add('hidden');
+      ligneEtage.classList.add('hidden');
+      noteTable.classList.remove('hidden');
+      radiosFacade.forEach((r) => (r.checked = false));
+      selectEtage.value = '';
+      etat.emplacement = { allee: 'Table', facade: null, etage: null };
+      ouvrirTable();
+      return;
+    }
+
+    ligneFacade.classList.remove('hidden');
+    ligneEtage.classList.remove('hidden');
+    noteTable.classList.add('hidden');
+
     const facadeInput = document.querySelector('input[name="facade"]:checked');
     const facade = facadeInput ? facadeInput.value : null;
 
@@ -74,6 +93,7 @@ async function ouvrirCellule(numero) {
   etat.celluleOuverte = numero;
   document.getElementById('panel-cellules').classList.add('hidden');
   document.getElementById('panel-cellule-detail').classList.remove('hidden');
+  document.getElementById('btn-retour-grille').textContent = '← Retour aux cellules';
 
   document.getElementById('cellule-titre').textContent = libelleEmplacement({ ...etat.emplacement, cellule: numero });
   document.getElementById('input-recherche').value = '';
@@ -86,8 +106,35 @@ async function ouvrirCellule(numero) {
   await renderListeArticlesCellule();
 }
 
+/** Ouvre directement l'écran d'ajout d'articles pour la zone "Table" (pas de grille, pas de cellule) */
+async function ouvrirTable() {
+  etat.celluleOuverte = null;
+  document.getElementById('panel-cellules').classList.add('hidden');
+  document.getElementById('panel-cellule-detail').classList.remove('hidden');
+  document.getElementById('btn-retour-grille').textContent = '← Retour';
+
+  document.getElementById('cellule-titre').textContent = 'Table';
+  document.getElementById('input-recherche').value = '';
+
+  renderFiltres();
+  document.getElementById('resultats-recherche').classList.add('hidden');
+  await renderListeArticlesCellule();
+}
+
 function retourGrille() {
   etat.celluleOuverte = null;
+
+  if (estZoneTable(etat.emplacement.allee)) {
+    // Pas de grille pour la zone Table : on revient à l'écran de choix d'emplacement
+    document.getElementById('panel-cellule-detail').classList.add('hidden');
+    document.getElementById('select-allee').value = '';
+    document.getElementById('ligne-facade').classList.remove('hidden');
+    document.getElementById('ligne-etage').classList.remove('hidden');
+    document.getElementById('note-zone-table').classList.add('hidden');
+    etat.emplacement = { allee: null, facade: null, etage: null };
+    return;
+  }
+
   document.getElementById('panel-cellule-detail').classList.add('hidden');
   afficherGrilleCellules();
 }
@@ -260,13 +307,24 @@ let _idADeplacer = null;
 function ouvrirModaleDeplacer(id) {
   _idADeplacer = id;
   document.getElementById('deplacer-allee').value = etat.emplacement.allee;
-  document.querySelector(`input[name="deplacer-facade"][value="${etat.emplacement.facade}"]`).checked = true;
-  document.getElementById('deplacer-etage').value = etat.emplacement.etage || '1';
+  if (!estZoneTable(etat.emplacement.allee)) {
+    document.querySelector(`input[name="deplacer-facade"][value="${etat.emplacement.facade}"]`).checked = true;
+    document.getElementById('deplacer-etage').value = etat.emplacement.etage || '1';
+  }
   majSelectCelluleModale();
   document.getElementById('modale-deplacer').classList.remove('hidden');
 }
 
 function majSelectCelluleModale() {
+  const alleeCible = document.getElementById('deplacer-allee').value;
+  const versTable = estZoneTable(alleeCible);
+
+  document.getElementById('deplacer-ligne-facade').classList.toggle('hidden', versTable);
+  document.getElementById('deplacer-ligne-etage').classList.toggle('hidden', versTable);
+  document.getElementById('deplacer-ligne-cellule').classList.toggle('hidden', versTable);
+
+  if (versTable) return;
+
   const facade = document.querySelector('input[name="deplacer-facade"]:checked').value;
   document.getElementById('deplacer-etage').disabled = facade === 'Sol';
   const select = document.getElementById('deplacer-cellule');
@@ -274,6 +332,7 @@ function majSelectCelluleModale() {
 }
 
 function initModaleDeplacer() {
+  document.getElementById('deplacer-allee').addEventListener('change', majSelectCelluleModale);
   document.querySelectorAll('input[name="deplacer-facade"]').forEach((r) =>
     r.addEventListener('change', majSelectCelluleModale)
   );
@@ -281,16 +340,20 @@ function initModaleDeplacer() {
     document.getElementById('modale-deplacer').classList.add('hidden');
   });
   document.getElementById('btn-confirmer-deplacer').addEventListener('click', async () => {
-    const nouvelEmplacement = {
-      allee: document.getElementById('deplacer-allee').value,
-      facade: document.querySelector('input[name="deplacer-facade"]:checked').value,
-      etage: document.getElementById('deplacer-etage').value,
-      cellule: document.getElementById('deplacer-cellule').value,
-    };
+    const alleeCible = document.getElementById('deplacer-allee').value;
+    const nouvelEmplacement = estZoneTable(alleeCible)
+      ? { allee: 'Table', facade: null, etage: null, cellule: null }
+      : {
+          allee: alleeCible,
+          facade: document.querySelector('input[name="deplacer-facade"]:checked').value,
+          etage: document.getElementById('deplacer-etage').value,
+          cellule: document.getElementById('deplacer-cellule').value,
+        };
     await deplacerAffectation(_idADeplacer, nouvelEmplacement);
     document.getElementById('modale-deplacer').classList.add('hidden');
     afficherToast('Article déplacé', 'succes');
-    await renderListeArticlesCellule();
+    if (estZoneTable(etat.emplacement.allee)) await ouvrirTable();
+    else await renderListeArticlesCellule();
   });
 }
 
@@ -302,6 +365,9 @@ function allerAccueil() {
   const selectEtage = document.getElementById('select-etage');
   selectEtage.value = '';
   selectEtage.disabled = false;
+  document.getElementById('ligne-facade').classList.remove('hidden');
+  document.getElementById('ligne-etage').classList.remove('hidden');
+  document.getElementById('note-zone-table').classList.add('hidden');
 
   etat.emplacement = { allee: null, facade: null, etage: null };
   etat.celluleOuverte = null;
@@ -376,12 +442,28 @@ function retourDepuisVueZone() {
   document.getElementById('panel-vue-zone').classList.add('hidden');
   document.getElementById('barre-impression').classList.add('hidden');
   document.getElementById('panel-emplacement').classList.remove('hidden');
-  if (etat.celluleOuverte) {
+  if (estZoneTable(etat.emplacement.allee)) {
+    ouvrirTable();
+  } else if (etat.celluleOuverte) {
     document.getElementById('panel-cellule-detail').classList.remove('hidden');
     renderListeArticlesCellule();
   } else if (etat.emplacement.allee) {
     afficherGrilleCellules();
   }
+}
+
+/** Construit une case à cocher qui sélectionne/désélectionne un groupe d'ids pour l'impression des étiquettes */
+function caseSelection(ids) {
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.className = 'case-select';
+  input.checked = ids.length > 0 && ids.every((id) => etat.selectionEtiquettes.has(id));
+  input.addEventListener('change', (e) => {
+    if (e.target.checked) ids.forEach((id) => etat.selectionEtiquettes.add(id));
+    else ids.forEach((id) => etat.selectionEtiquettes.delete(id));
+    renderContenuVueZone();
+  });
+  return input;
 }
 
 async function renderContenuVueZone() {
@@ -435,19 +517,6 @@ async function renderContenuVueZone() {
     return btn;
   };
 
-  const caseSelection = (ids) => {
-    const input = document.createElement('input');
-    input.type = 'checkbox';
-    input.className = 'case-select';
-    input.checked = ids.length > 0 && ids.every((id) => etat.selectionEtiquettes.has(id));
-    input.addEventListener('change', (e) => {
-      if (e.target.checked) ids.forEach((id) => etat.selectionEtiquettes.add(id));
-      else ids.forEach((id) => etat.selectionEtiquettes.delete(id));
-      renderContenuVueZone();
-    });
-    return input;
-  };
-
   const construireTitre = (classe, texte, ids, boutonViderEl) => {
     const titre = document.createElement('div');
     titre.className = classe;
@@ -465,9 +534,19 @@ async function renderContenuVueZone() {
       const idsAllee = liste.filter((a) => a.allee === aff.allee).map((a) => a.id);
       alleeDiv = document.createElement('div');
       alleeDiv.className = 'zone-carte';
-      alleeDiv.appendChild(construireTitre('zone-titre', `Zone ${aff.allee}`, idsAllee, boutonVider(`la zone ${aff.allee}`, { allee: aff.allee })));
+      const libelleAllee = estZoneTable(aff.allee) ? 'Table' : `Zone ${aff.allee}`;
+      const critereAllee = estZoneTable(aff.allee) ? "la zone Table" : `la zone ${aff.allee}`;
+      alleeDiv.appendChild(construireTitre('zone-titre', libelleAllee, idsAllee, boutonVider(critereAllee, { allee: aff.allee })));
       conteneur.appendChild(alleeDiv);
       facadeActuelle = null;
+    }
+
+    if (estZoneTable(aff.allee)) {
+      // Zone "Table" : pas de sous-niveau façade/étage/cellule, les articles
+      // sont ajoutés directement dans la carte de zone.
+      celluleDiv = alleeDiv;
+      celluleDiv.appendChild(construireLigneArticleVue(aff, parCode));
+      return;
     }
 
     if (aff.facade !== facadeActuelle) {
@@ -510,20 +589,50 @@ async function renderContenuVueZone() {
       etageDiv.appendChild(celluleDiv);
     }
 
-    const art = parCode.get(aff.codeArticle) || { designation: '(article introuvable)', rayon: '', famille: '' };
-    const ligne = document.createElement('div');
-    ligne.className = 'zone-ligne-article';
-    ligne.appendChild(caseSelection([aff.id]));
-    const code = document.createElement('span');
-    code.className = 'code';
-    code.textContent = `${aff.codeArticle} — ${art.designation}`;
-    const meta = document.createElement('span');
-    meta.className = 'meta';
-    meta.textContent = `${art.rayon}${art.famille ? ' · ' + art.famille : ''}`;
-    ligne.appendChild(code);
-    ligne.appendChild(meta);
-    celluleDiv.appendChild(ligne);
+    celluleDiv.appendChild(construireLigneArticleVue(aff, parCode));
   });
+}
+
+/** Construit une ligne d'article dans la Vue : case de sélection, code/désignation, stock, méta, suppression */
+function construireLigneArticleVue(aff, parCode) {
+  const art = parCode.get(aff.codeArticle) || { designation: '(article introuvable)', rayon: '', famille: '' };
+
+  const ligne = document.createElement('div');
+  ligne.className = 'zone-ligne-article';
+  ligne.appendChild(caseSelection([aff.id]));
+
+  const code = document.createElement('span');
+  code.className = 'code';
+  code.textContent = `${aff.codeArticle} — ${art.designation}`;
+  ligne.appendChild(code);
+
+  if (aff.stockReel !== null && aff.stockReel !== undefined) {
+    const stock = document.createElement('span');
+    stock.className = 'stock';
+    stock.textContent = `Stock : ${aff.stockReel}`;
+    ligne.appendChild(stock);
+  }
+
+  const meta = document.createElement('span');
+  meta.className = 'meta';
+  meta.textContent = `${art.rayon}${art.famille ? ' · ' + art.famille : ''}`;
+  ligne.appendChild(meta);
+
+  const btnSupprimer = document.createElement('button');
+  btnSupprimer.className = 'icone-btn-mini';
+  btnSupprimer.title = 'Supprimer cet article';
+  btnSupprimer.textContent = '🗑️';
+  btnSupprimer.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (!confirm(`Supprimer "${aff.codeArticle} — ${art.designation}" de cet emplacement ?`)) return;
+    await supprimerAffectation(aff.id);
+    etat.selectionEtiquettes.delete(aff.id);
+    afficherToast('Article supprimé', 'succes');
+    await renderContenuVueZone();
+  });
+  ligne.appendChild(btnSupprimer);
+
+  return ligne;
 }
 
 /** Met à jour le texte et la visibilité de la barre flottante de sélection pour l'impression */
@@ -568,7 +677,9 @@ async function genererPDFEtiquettes() {
     const champs = [];
     if (art.designation) champs.push(champEtiquette('Désignation', art.designation));
     if (art.codeBarre) champs.push(champEtiquette('Code-barres', art.codeBarre));
-    champs.push(champEtiquette('Emplacement', libelleEmplacementCourt({ allee: aff.allee, facade: aff.facade, etage: aff.etage, cellule: aff.cellule })));
+    if (aff.allee !== 'Table') {
+      champs.push(champEtiquette('Emplacement', libelleEmplacementCourt({ allee: aff.allee, facade: aff.facade, etage: aff.etage, cellule: aff.cellule })));
+    }
     if (art.rayon) champs.push(champEtiquette('Rayon', art.rayon));
 
     return `
@@ -585,6 +696,7 @@ async function genererPDFEtiquettes() {
           </div>
           <div class="etiquette-details">${champs.join('')}</div>
         </div>
+        <div class="etiquette-pied">Plateforme SIDI GHANEM</div>
       </div>
     `;
   }).join('');
@@ -653,6 +765,15 @@ function initActionsEntete() {
   document.getElementById('btn-export-json').addEventListener('click', async () => {
     await exporterSauvegardeJSON();
     afficherToast('Sauvegarde exportée', 'succes');
+  });
+
+  document.getElementById('btn-stock-csv').addEventListener('click', async () => {
+    try {
+      await exporterStockCSV();
+      afficherToast('Fichier stock généré', 'succes');
+    } catch (err) {
+      afficherToast(err.message, 'erreur');
+    }
   });
 
   document.getElementById('btn-import-json').addEventListener('click', () => inputJSON.click());

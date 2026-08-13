@@ -2,18 +2,27 @@
 
 const ORDRE_FACADE = { Gauche: 0, Droite: 1, Sol: 2 };
 
+/** Rang de tri d'une allée : les allées numériques d'abord (1,2,3,4), la zone "Table" toujours en dernier */
+function rangAllee(allee) {
+  return typeof allee === 'number' ? allee : Infinity;
+}
+
 /** Trie une liste d'affectations dans l'ordre Allée > Façade > Étage > Cellule > ordre.
+ *  La zone "Table" (sans façade/étage/cellule) est toujours triée après les allées numériques.
  *  Utilisé à la fois par l'export Excel et par la vue de consultation par zone. */
 function trierAffectationsPourAffichage(affectations) {
   return [...affectations].sort((a, b) => {
-    if (a.allee !== b.allee) return a.allee - b.allee;
+    const ra = rangAllee(a.allee), rb = rangAllee(b.allee);
+    if (ra !== rb) return ra - rb;
     const fa = ORDRE_FACADE[a.facade] ?? 9;
     const fb = ORDRE_FACADE[b.facade] ?? 9;
     if (fa !== fb) return fa - fb;
     const ea = a.etage ?? 0;
     const eb = b.etage ?? 0;
     if (ea !== eb) return ea - eb;
-    if (a.cellule !== b.cellule) return a.cellule - b.cellule;
+    const ca = a.cellule ?? 0;
+    const cb = b.cellule ?? 0;
+    if (ca !== cb) return ca - cb;
     return a.ordre - b.ordre;
   });
 }
@@ -33,9 +42,9 @@ async function exporterExcel() {
     const art = articleParCode.get(aff.codeArticle) || {};
     return {
       'Zone': aff.allee,
-      'Façade': aff.facade,
-      'Étage': aff.facade === 'Sol' ? '-' : aff.etage,
-      'Cellule': zeroPad(aff.cellule),
+      'Façade': aff.facade || '',
+      'Étage': aff.facade === 'Sol' ? '-' : (aff.etage ?? ''),
+      'Cellule': aff.cellule !== null && aff.cellule !== undefined ? zeroPad(aff.cellule) : '',
       'Code article': aff.codeArticle,
       'Désignation': art.designation || '',
       'Rayon': art.rayon || '',
@@ -85,6 +94,27 @@ function telechargerModeleAjoutCellules() {
   const classeur = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(classeur, feuille, 'Modèle ajout cellules');
   XLSX.writeFile(classeur, 'modele-ajout-articles-cellules.xlsx');
+}
+
+/** Télécharge un CSV listant le stock théorique de chaque article du catalogue (Code article, Désignation, Stock) */
+async function exporterStockCSV() {
+  const articles = await getAllArticles();
+  if (!articles.length) {
+    throw new Error("Le catalogue est vide — importe d'abord l'état théorique.");
+  }
+
+  const lignes = [...articles]
+    .sort((a, b) => a.codeArticle.localeCompare(b.codeArticle, 'fr'))
+    .map((a) => ({
+      'Code article': a.codeArticle,
+      'Désignation': a.designation || '',
+      'Stock': a.stockTheorique ?? 0,
+    }));
+
+  const feuille = XLSX.utils.json_to_sheet(lignes);
+  const classeur = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(classeur, feuille, 'Stock');
+  XLSX.writeFile(classeur, `stock-articles_${horodatageFichier()}.csv`, { bookType: 'csv' });
 }
 
 /** Télécharge une sauvegarde JSON complète (articles + affectations) */

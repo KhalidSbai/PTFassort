@@ -5,17 +5,25 @@ function zeroPad(n) {
   return String(n).padStart(2, '0');
 }
 
+/** Vrai si l'allée désigne la zone spéciale "Table" (pas de façade/étage/cellule) */
+function estZoneTable(allee) {
+  return allee === 'Table';
+}
+
 /** Construit une clé unique d'emplacement de cellule.
  *  Exemple : { allee: 2, facade: 'Gauche', etage: 3, cellule: 12 } -> "2-Gauche-3-12"
  *  Pour la façade "Sol", l'étage est toujours null.
+ *  Pour la zone "Table" (pas de façade/étage/cellule), la clé est toujours "Table".
  */
 function cleEmplacement({ allee, facade, etage, cellule }) {
+  if (estZoneTable(allee)) return 'Table';
   const etageVal = facade === 'Sol' ? '0' : String(etage);
   return `${allee}-${facade}-${etageVal}-${cellule}`;
 }
 
 /** Libellé complet et lisible d'un emplacement (utilisé dans les titres) */
 function libelleEmplacement({ allee, facade, etage, cellule }) {
+  if (estZoneTable(allee)) return 'Table';
   const lignes = [`Zone ${allee}`, `Façade ${facade}`];
   if (facade !== 'Sol') lignes.push(`Étage ${etage}`);
   lignes.push(`Cellule ${zeroPad(cellule)}`);
@@ -24,6 +32,7 @@ function libelleEmplacement({ allee, facade, etage, cellule }) {
 
 /** Libellé d'une zone (allée/façade/étage) sans référence à une cellule précise */
 function libelleZone({ allee, facade, etage }) {
+  if (estZoneTable(allee)) return 'Table';
   const lignes = [`Zone ${allee}`, `Façade ${facade}`];
   if (facade !== 'Sol') lignes.push(`Étage ${etage}`);
   return lignes.join(' — ');
@@ -31,6 +40,7 @@ function libelleZone({ allee, facade, etage }) {
 
 /** Libellé court d'un emplacement (utilisé dans l'export Excel / listes compactes) */
 function libelleEmplacementCourt({ allee, facade, etage, cellule }) {
+  if (estZoneTable(allee)) return 'Table';
   const etageTxt = facade === 'Sol' ? '-' : etage;
   return `Z${allee} ${facade} É${etageTxt} C${zeroPad(cellule)}`;
 }

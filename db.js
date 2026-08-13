@@ -133,10 +133,10 @@ async function ajouterAffectation({ codeArticle, allee, facade, etage, cellule, 
   const nouvelle = {
     id: genererId(),
     codeArticle,
-    allee: Number(allee),
-    facade,
-    etage: facade === 'Sol' ? null : Number(etage),
-    cellule: Number(cellule),
+    allee: estZoneTable(allee) ? 'Table' : Number(allee),
+    facade: estZoneTable(allee) ? null : facade,
+    etage: estZoneTable(allee) || facade === 'Sol' ? null : Number(etage),
+    cellule: estZoneTable(allee) ? null : Number(cellule),
     cle,
     ordre: ordreMax + 1,
     stockReel: stockReel === null || stockReel === undefined || stockReel === '' ? null : Number(stockReel), // facultatif
@@ -172,10 +172,10 @@ async function deplacerAffectation(id, nouvelEmplacement) {
   const cibles = await getAffectationsParCellule(nouvelleCle);
   const ordreMax = cibles.reduce((max, a) => Math.max(max, a.ordre), -1);
 
-  affectation.allee = Number(nouvelEmplacement.allee);
-  affectation.facade = nouvelEmplacement.facade;
-  affectation.etage = nouvelEmplacement.facade === 'Sol' ? null : Number(nouvelEmplacement.etage);
-  affectation.cellule = Number(nouvelEmplacement.cellule);
+  affectation.allee = estZoneTable(nouvelEmplacement.allee) ? 'Table' : Number(nouvelEmplacement.allee);
+  affectation.facade = estZoneTable(nouvelEmplacement.allee) ? null : nouvelEmplacement.facade;
+  affectation.etage = estZoneTable(nouvelEmplacement.allee) || nouvelEmplacement.facade === 'Sol' ? null : Number(nouvelEmplacement.etage);
+  affectation.cellule = estZoneTable(nouvelEmplacement.allee) ? null : Number(nouvelEmplacement.cellule);
   affectation.cle = nouvelleCle;
   affectation.ordre = ordreMax + 1;
 
@@ -251,7 +251,7 @@ async function modifierCodeBarreArticle(codeArticle, codeBarre) {
  */
 async function supprimerAffectationsParCritere(critere) {
   const correspond = (a) => {
-    if (critere.allee !== undefined && Number(a.allee) !== Number(critere.allee)) return false;
+    if (critere.allee !== undefined && String(a.allee) !== String(critere.allee)) return false;
     if (critere.facade !== undefined && a.facade !== critere.facade) return false;
     if (critere.etage !== undefined && (a.etage ?? null) !== (critere.etage === null ? null : Number(critere.etage))) return false;
     if (critere.cellule !== undefined && Number(a.cellule) !== Number(critere.cellule)) return false;
