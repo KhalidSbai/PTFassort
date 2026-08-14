@@ -96,20 +96,36 @@ function telechargerModeleAjoutCellules() {
   XLSX.writeFile(classeur, 'modele-ajout-articles-cellules.xlsx');
 }
 
-/** Télécharge un CSV listant le stock théorique de chaque article du catalogue (Code article, Désignation, Stock) */
+/** Télécharge un CSV listant le stock de chaque article (Code article, Désignation, Stock,
+ *  quantité la plus fréquente par palette et son pourcentage de fiabilité).
+ *  Ces deux dernières colonnes sont recalculées à chaque appel à partir des stockReel
+ *  actuellement enregistrés sur les occurrences — jamais une valeur mise en cache. */
 async function exporterStockCSV() {
-  const articles = await getAllArticles();
+  const [articles, affectations] = await Promise.all([getAllArticles(), getAllAffectations()]);
   if (!articles.length) {
     throw new Error("Le catalogue est vide — importe d'abord l'état théorique.");
   }
 
+  const quantitesParArticle = new Map();
+  affectations.forEach((aff) => {
+    if (aff.stockReel === null || aff.stockReel === undefined) return;
+    if (!quantitesParArticle.has(aff.codeArticle)) quantitesParArticle.set(aff.codeArticle, []);
+    quantitesParArticle.get(aff.codeArticle).push(aff.stockReel);
+  });
+
   const lignes = [...articles]
     .sort((a, b) => a.codeArticle.localeCompare(b.codeArticle, 'fr'))
-    .map((a) => ({
-      'Code article': a.codeArticle,
-      'Désignation': a.designation || '',
-      'Stock': a.stockTheorique ?? 0,
-    }));
+    .map((a) => {
+      const stat = calculerQuantiteFrequente(quantitesParArticle.get(a.codeArticle) || []);
+      return {
+        'Code article': a.codeArticle,
+        'Désignation': a.designation || '',
+        'Stock': a.stockTheorique ?? 0,
+        'Quantité la plus fréquente / palette': stat ? stat.quantite : '',
+        'Fiabilité (%)': stat ? stat.pourcentage : '',
+        'Palettes comptées': stat ? stat.total : 0,
+      };
+    });
 
   const feuille = XLSX.utils.json_to_sheet(lignes);
   const classeur = XLSX.utils.book_new();

@@ -422,10 +422,92 @@ function initImportCSVCellules() {
   document.getElementById('btn-telecharger-modele-cellules').addEventListener('click', telechargerModeleAjoutCellules);
 }
 
+// ---------- Écran Stock : quantité la plus fréquente par palette + fiabilité ----------
+
+async function afficherPanelStock() {
+  masquerPanelsPrincipaux();
+  document.getElementById('panel-stock').classList.remove('hidden');
+  document.getElementById('input-recherche-stock').value = '';
+  await renderContenuStock();
+}
+
+function retourDepuisStock() {
+  document.getElementById('panel-stock').classList.add('hidden');
+  document.getElementById('panel-emplacement').classList.remove('hidden');
+  if (estZoneTable(etat.emplacement.allee)) {
+    ouvrirTable();
+  } else if (etat.celluleOuverte) {
+    document.getElementById('panel-cellule-detail').classList.remove('hidden');
+    renderListeArticlesCellule();
+  } else if (etat.emplacement.allee) {
+    afficherGrilleCellules();
+  }
+}
+
+/**
+ * Affiche, pour chaque article, la quantité la plus fréquemment comptée par palette et
+ * son pourcentage de fiabilité. Tout est recalculé ici à partir des stockReel actuellement
+ * en base (jamais une valeur mise en cache) : après correction d'une quantité, rouvrir ou
+ * rafraîchir cet écran donne toujours un résultat à jour.
+ */
+async function renderContenuStock() {
+  const texteRecherche = document.getElementById('input-recherche-stock').value;
+  const [articles, affectations] = await Promise.all([getAllArticles(), getAllAffectations()]);
+
+  const quantitesParArticle = new Map();
+  affectations.forEach((aff) => {
+    if (aff.stockReel === null || aff.stockReel === undefined) return;
+    if (!quantitesParArticle.has(aff.codeArticle)) quantitesParArticle.set(aff.codeArticle, []);
+    quantitesParArticle.get(aff.codeArticle).push(aff.stockReel);
+  });
+
+  let liste = [...articles].sort((a, b) => a.codeArticle.localeCompare(b.codeArticle, 'fr'));
+  if (texteRecherche.trim()) {
+    liste = liste.filter((a) => correspondMotsCles(a.codeArticle + ' ' + a.designation, texteRecherche));
+  }
+
+  const conteneur = document.getElementById('contenu-stock');
+  conteneur.innerHTML = '';
+
+  if (!liste.length) {
+    conteneur.innerHTML = `<p class="message-vide">Aucun article${texteRecherche.trim() ? ' pour cette recherche' : ''}.</p>`;
+    return;
+  }
+
+  liste.forEach((art) => {
+    const stat = calculerQuantiteFrequente(quantitesParArticle.get(art.codeArticle) || []);
+
+    const ligne = document.createElement('div');
+    ligne.className = 'stock-ligne';
+
+    const info = document.createElement('div');
+    info.className = 'stock-info';
+    info.innerHTML = `
+      <div class="stock-code">${art.codeArticle} — ${art.designation}</div>
+      <div class="stock-meta">Stock théorique : ${art.stockTheorique ?? 0}${stat ? ` · ${stat.total} palette(s) comptée(s)` : ' · aucune palette comptée'}</div>
+    `;
+
+    const quantite = document.createElement('div');
+    quantite.className = 'stock-quantite';
+    if (stat) {
+      const classeFiabilite = stat.pourcentage >= 75 ? 'fiabilite-haute' : stat.pourcentage < 50 ? 'fiabilite-basse' : '';
+      quantite.innerHTML = `${stat.quantite}<small class="stock-fiabilite ${classeFiabilite}">(${stat.pourcentage} %)</small>`;
+    } else {
+      quantite.innerHTML = `<small class="stock-fiabilite">—</small>`;
+    }
+
+    ligne.appendChild(info);
+    ligne.appendChild(quantite);
+    conteneur.appendChild(ligne);
+  });
+}
+
+const lancerRechercheStock = debounce(renderContenuStock, 120);
+
 // ---------- Vue de consultation : articles enregistrés par zone ----------
 
 function masquerPanelsPrincipaux() {
-  ['panel-emplacement', 'panel-cellules', 'panel-cellule-detail', 'panel-vue-zone'].forEach((id) =>
+  ['panel-emplacement', 'panel-cellules', 'panel-cellule-detail', 'panel-vue-zone', 'panel-stock'].forEach((id) =>
     document.getElementById(id).classList.add('hidden')
   );
 }
@@ -767,14 +849,7 @@ function initActionsEntete() {
     afficherToast('Sauvegarde exportée', 'succes');
   });
 
-  document.getElementById('btn-stock-csv').addEventListener('click', async () => {
-    try {
-      await exporterStockCSV();
-      afficherToast('Fichier stock généré', 'succes');
-    } catch (err) {
-      afficherToast(err.message, 'erreur');
-    }
-  });
+  document.getElementById('btn-stock-csv').addEventListener('click', afficherPanelStock);
 
   document.getElementById('btn-import-json').addEventListener('click', () => inputJSON.click());
   inputJSON.addEventListener('change', async (e) => {
@@ -817,5 +892,16 @@ function initUI() {
   document.getElementById('btn-generer-pdf').addEventListener('click', genererPDFEtiquettes);
   window.addEventListener('afterprint', () => {
     document.getElementById('zone-impression').innerHTML = '';
+  });
+
+  document.getElementById('btn-retour-stock').addEventListener('click', retourDepuisStock);
+  document.getElementById('input-recherche-stock').addEventListener('input', lancerRechercheStock);
+  document.getElementById('btn-export-stock-csv').addEventListener('click', async () => {
+    try {
+      await exporterStockCSV();
+      afficherToast('Fichier stock généré', 'succes');
+    } catch (err) {
+      afficherToast(err.message, 'erreur');
+    }
   });
 }

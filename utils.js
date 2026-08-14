@@ -108,6 +108,42 @@ function telechargerBlob(blob, nomFichier) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/**
+ * Calcule, à partir d'une liste de quantités de palettes (les stockReel actuels de
+ * toutes les occurrences d'un article), la quantité la plus fréquente et le pourcentage
+ * de fiabilité associé (nb de palettes avec cette quantité / nb total de palettes × 100).
+ * En cas d'égalité entre plusieurs quantités, la plus petite est retenue (choix déterministe).
+ * Retourne null si la liste est vide (aucune palette avec une quantité renseignée).
+ *
+ * IMPORTANT : cette fonction ne fait aucune lecture ni écriture en base — elle doit
+ * toujours être appelée avec les quantités fraîchement lues depuis IndexedDB (jamais
+ * une valeur mise en cache), pour que le résultat reflète toujours les corrections les
+ * plus récentes. Rien de ce calcul n'est jamais persisté.
+ */
+function calculerQuantiteFrequente(quantites) {
+  if (!quantites.length) return null;
+
+  const comptage = new Map();
+  quantites.forEach((q) => comptage.set(q, (comptage.get(q) || 0) + 1));
+
+  let quantiteRetenue = null;
+  let effectifMax = -1;
+  [...comptage.keys()].sort((a, b) => a - b).forEach((q) => {
+    const effectif = comptage.get(q);
+    if (effectif > effectifMax) {
+      effectifMax = effectif;
+      quantiteRetenue = q;
+    }
+  });
+
+  return {
+    quantite: quantiteRetenue,
+    effectif: effectifMax,
+    total: quantites.length,
+    pourcentage: Math.round((effectifMax / quantites.length) * 100),
+  };
+}
+
 /** Horodatage compact pour les noms de fichiers (ex: 2026-08-02_1830) */
 function horodatageFichier() {
   const d = new Date();
