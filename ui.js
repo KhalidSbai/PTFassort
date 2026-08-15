@@ -259,9 +259,10 @@ function libelleBadgeStockDLC(aff, art) {
   if (aff.stockReel === null && !aff.dlc && !art?.codeBarre) return '';
   const parties = [];
   if (aff.stockReel !== null) parties.push(`Stock : ${aff.stockReel}`);
-  if (aff.dlc) parties.push(`DLC : ${aff.dlc}`);
+  if (aff.dlc) parties.push(`DLC : ${formatDLCCourt(aff.dlc)}`);
   if (art?.codeBarre) parties.push(`CB : ${art.codeBarre}`);
-  const perime = aff.dlc && aff.dlc < new Date().toISOString().slice(0, 10);
+  // Comparaison au niveau du mois (le jour est toujours fixé au 1er, sans signification propre)
+  const perime = aff.dlc && aff.dlc.slice(0, 7) < new Date().toISOString().slice(0, 7);
   return `<span class="badge-stock-dlc${perime ? ' perime' : ''}">${parties.join(' · ')}</span>`;
 }
 
@@ -277,7 +278,7 @@ function ouvrirModaleStockDLC(aff, art, contexte = 'cellule') {
   _contexteStockDLC = contexte;
   document.getElementById('stock-dlc-titre').textContent = `Infos complémentaires — ${aff.codeArticle}`;
   document.getElementById('input-stock-reel').value = aff.stockReel ?? '';
-  document.getElementById('input-dlc').value = aff.dlc || '';
+  document.getElementById('input-dlc').value = aff.dlc ? aff.dlc.slice(0, 7) : '';
   document.getElementById('input-code-barre').value = art?.codeBarre || '';
   document.getElementById('modale-stock-dlc').classList.remove('hidden');
 }
@@ -288,7 +289,8 @@ function initModaleStockDLC() {
   });
   document.getElementById('btn-confirmer-stock-dlc').addEventListener('click', async () => {
     const stockReel = document.getElementById('input-stock-reel').value;
-    const dlc = document.getElementById('input-dlc').value;
+    const moisAnnee = document.getElementById('input-dlc').value; // format "YYYY-MM"
+    const dlc = moisAnnee ? `${moisAnnee}-01` : ''; // le jour est toujours fixé au 1er
     const codeBarre = document.getElementById('input-code-barre').value;
     // Stock/DLC = propres à cette occurrence ; code-barres = partagé par tout le catalogue (même codeArticle)
     await Promise.all([
