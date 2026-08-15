@@ -375,6 +375,18 @@ select {
   color: var(--couleur-danger);
 }
 
+.filtre-stock-negatif {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--couleur-danger);
+  margin-top: 10px;
+  cursor: pointer;
+}
+.filtre-stock-negatif input { width: 18px; height: 18px; }
+
 .zone-carte {
   border: 1px solid var(--couleur-bordure);
   border-radius: var(--rayon);

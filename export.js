@@ -106,21 +106,26 @@ async function exporterStockCSV() {
     throw new Error("Le catalogue est vide — importe d'abord l'état théorique.");
   }
 
-  const quantitesParArticle = new Map();
+  // Pour chaque article : toutes les quantités de palettes connues (stockReel), et leur somme
+  const donneesParArticle = new Map();
   affectations.forEach((aff) => {
     if (aff.stockReel === null || aff.stockReel === undefined) return;
-    if (!quantitesParArticle.has(aff.codeArticle)) quantitesParArticle.set(aff.codeArticle, []);
-    quantitesParArticle.get(aff.codeArticle).push(aff.stockReel);
+    if (!donneesParArticle.has(aff.codeArticle)) donneesParArticle.set(aff.codeArticle, { quantites: [], total: 0 });
+    const entree = donneesParArticle.get(aff.codeArticle);
+    entree.quantites.push(aff.stockReel);
+    entree.total += aff.stockReel;
   });
 
   const lignes = [...articles]
     .sort((a, b) => a.codeArticle.localeCompare(b.codeArticle, 'fr'))
     .map((a) => {
-      const stat = calculerQuantiteFrequente(quantitesParArticle.get(a.codeArticle) || []);
+      const donnees = donneesParArticle.get(a.codeArticle);
+      const stat = calculerQuantiteFrequente(donnees ? donnees.quantites : []);
       return {
         'Code article': a.codeArticle,
         'Désignation': a.designation || '',
-        'Stock': a.stockTheorique ?? 0,
+        'Stock théorique': a.stockTheorique ?? 0,
+        'Stock réel': donnees ? donnees.total : '',
         'Quantité la plus fréquente / palette': stat ? stat.quantite : '',
         'Fiabilité (%)': stat ? stat.pourcentage : '',
         'Palettes comptées': stat ? stat.total : 0,
@@ -128,9 +133,9 @@ async function exporterStockCSV() {
     });
 
   const feuille = XLSX.utils.json_to_sheet(lignes);
-  const classeur = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(classeur, feuille, 'Stock');
-  XLSX.writeFile(classeur, `stock-articles_${horodatageFichier()}.csv`, { bookType: 'csv' });
+  const csv = XLSX.utils.sheet_to_csv(feuille, { FS: ';' }); // délimiteur point-virgule demandé
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }); // BOM pour un bon affichage des accents dans Excel
+  telechargerBlob(blob, `stock-articles_${horodatageFichier()}.csv`);
 }
 
 /** Télécharge une sauvegarde JSON complète (articles + affectations) */

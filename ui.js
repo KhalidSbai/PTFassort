@@ -269,10 +269,12 @@ function libelleBadgeStockDLC(aff, art) {
 
 let _idStockDLC = null;
 let _codeArticleStockDLC = null;
+let _contexteStockDLC = 'cellule';
 
-function ouvrirModaleStockDLC(aff, art) {
+function ouvrirModaleStockDLC(aff, art, contexte = 'cellule') {
   _idStockDLC = aff.id;
   _codeArticleStockDLC = aff.codeArticle;
+  _contexteStockDLC = contexte;
   document.getElementById('stock-dlc-titre').textContent = `Infos complémentaires — ${aff.codeArticle}`;
   document.getElementById('input-stock-reel').value = aff.stockReel ?? '';
   document.getElementById('input-dlc').value = aff.dlc || '';
@@ -296,7 +298,8 @@ function initModaleStockDLC() {
     await rafraichirCacheArticles();
     document.getElementById('modale-stock-dlc').classList.add('hidden');
     afficherToast('Informations enregistrées', 'succes');
-    await renderListeArticlesCellule();
+    if (_contexteStockDLC === 'vue') await renderContenuVueZone();
+    else await renderListeArticlesCellule();
   });
 }
 
@@ -516,6 +519,7 @@ async function afficherVueParZone() {
   masquerPanelsPrincipaux();
   document.getElementById('panel-vue-zone').classList.remove('hidden');
   document.getElementById('input-recherche-vue').value = '';
+  document.getElementById('checkbox-stock-negatif').checked = false;
   etat.selectionEtiquettes = new Set();
   await renderContenuVueZone();
 }
@@ -566,6 +570,12 @@ async function renderContenuVueZone() {
       return correspondMotsCles(texteArticle, texteRecherche);
     });
   }
+  if (document.getElementById('checkbox-stock-negatif').checked) {
+    liste = liste.filter((a) => {
+      const art = parCode.get(a.codeArticle);
+      return art && Number(art.stockTheorique) <= 0;
+    });
+  }
   liste = trierAffectationsPourAffichage(liste);
 
   majBarreImpression();
@@ -574,7 +584,8 @@ async function renderContenuVueZone() {
   conteneur.innerHTML = '';
 
   if (!liste.length) {
-    const raison = texteRecherche.trim() ? ' pour cette recherche' : alleeFiltre ? ' pour cette zone' : '';
+    const filtreStockNegatif = document.getElementById('checkbox-stock-negatif').checked;
+    const raison = texteRecherche.trim() ? ' pour cette recherche' : filtreStockNegatif ? ' avec un stock théorique ≤ 0' : alleeFiltre ? ' pour cette zone' : '';
     conteneur.innerHTML = `<p class="message-vide">Aucun article enregistré${raison}.</p>`;
     return;
   }
@@ -699,6 +710,16 @@ function construireLigneArticleVue(aff, parCode) {
   meta.className = 'meta';
   meta.textContent = `${art.rayon}${art.famille ? ' · ' + art.famille : ''}`;
   ligne.appendChild(meta);
+
+  const btnModifier = document.createElement('button');
+  btnModifier.className = 'icone-btn-mini';
+  btnModifier.title = 'Modifier (stock / DLC / code-barres)';
+  btnModifier.textContent = '🏷️';
+  btnModifier.addEventListener('click', (e) => {
+    e.stopPropagation();
+    ouvrirModaleStockDLC(aff, art, 'vue');
+  });
+  ligne.appendChild(btnModifier);
 
   const btnSupprimer = document.createElement('button');
   btnSupprimer.className = 'icone-btn-mini';
@@ -884,6 +905,7 @@ function initUI() {
   document.getElementById('btn-vue-zone').addEventListener('click', afficherVueParZone);
   document.getElementById('btn-retour-vue-zone').addEventListener('click', retourDepuisVueZone);
   document.getElementById('select-vue-allee').addEventListener('change', renderContenuVueZone);
+  document.getElementById('checkbox-stock-negatif').addEventListener('change', renderContenuVueZone);
   document.getElementById('input-recherche-vue').addEventListener('input', lancerRechercheVueZone);
   document.getElementById('btn-vider-allee').addEventListener('click', () => {
     const allee = document.getElementById('select-vue-allee').value;
