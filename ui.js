@@ -64,6 +64,77 @@ function initFormulaireEmplacement() {
 
 // ---------- Écran 2 : grille des 18 cellules ----------
 
+// ---------- Mémorisation du dernier écran affiché (survit à la fermeture/réouverture) ----------
+
+const CLE_NAVIGATION = 'cellules-entrepot-navigation';
+
+/** Enregistre l'écran actuellement affiché pour le restaurer à la prochaine ouverture */
+function sauvegarderNavigation(panel) {
+  try {
+    localStorage.setItem(CLE_NAVIGATION, JSON.stringify({
+      panel,
+      emplacement: etat.emplacement,
+      celluleOuverte: etat.celluleOuverte,
+      vueAllee: panel === 'vue' ? document.getElementById('select-vue-allee').value : undefined,
+    }));
+  } catch (e) {
+    // stockage indisponible (navigation privée, quota...) : l'app continue sans bloquer
+  }
+}
+
+/** Efface l'écran mémorisé (utilisé par le bouton Accueil, qui sert aussi de "réinitialiser") */
+function effacerNavigationMemorisee() {
+  try { localStorage.removeItem(CLE_NAVIGATION); } catch (e) { /* ignoré */ }
+}
+
+/** Restaure, au chargement de l'app, le dernier écran affiché (zone/cellule/Table/Vue) */
+async function restaurerNavigation() {
+  let donnees;
+  try {
+    const brut = localStorage.getItem(CLE_NAVIGATION);
+    if (!brut) return;
+    donnees = JSON.parse(brut);
+  } catch (e) {
+    return;
+  }
+  if (!donnees || !donnees.panel || donnees.panel === 'accueil') return;
+
+  if (donnees.panel === 'vue') {
+    if (donnees.vueAllee) document.getElementById('select-vue-allee').value = donnees.vueAllee;
+    await afficherVueParZone();
+    return;
+  }
+
+  const emp = donnees.emplacement;
+  if (!emp || !emp.allee) return;
+
+  if (estZoneTable(emp.allee)) {
+    document.getElementById('select-allee').value = 'Table';
+    document.getElementById('ligne-facade').classList.add('hidden');
+    document.getElementById('ligne-etage').classList.add('hidden');
+    document.getElementById('note-zone-table').classList.remove('hidden');
+    etat.emplacement = { allee: 'Table', facade: null, etage: null };
+    await ouvrirTable();
+    return;
+  }
+
+  document.getElementById('select-allee').value = emp.allee;
+  if (emp.facade) {
+    const radio = document.querySelector(`input[name="facade"][value="${emp.facade}"]`);
+    if (radio) radio.checked = true;
+  }
+  const selectEtage = document.getElementById('select-etage');
+  selectEtage.disabled = emp.facade === 'Sol';
+  if (emp.etage && emp.facade !== 'Sol') selectEtage.value = emp.etage;
+  etat.emplacement = emp;
+
+  if (donnees.panel === 'cellule' && donnees.celluleOuverte) {
+    await ouvrirCellule(donnees.celluleOuverte);
+  } else {
+    await afficherGrilleCellules();
+  }
+}
+
 async function afficherGrilleCellules() {
   document.getElementById('panel-cellule-detail').classList.add('hidden');
   const panel = document.getElementById('panel-cellules');
@@ -85,6 +156,8 @@ async function afficherGrilleCellules() {
     btn.addEventListener('click', () => ouvrirCellule(numero));
     grille.appendChild(btn);
   });
+
+  sauvegarderNavigation('grille');
 }
 
 // ---------- Écran 3 : contenu d'une cellule ----------
@@ -104,6 +177,7 @@ async function ouvrirCellule(numero) {
   renderFiltres();
   document.getElementById('resultats-recherche').classList.add('hidden');
   await renderListeArticlesCellule();
+  sauvegarderNavigation('cellule');
 }
 
 /** Ouvre directement l'écran d'ajout d'articles pour la zone "Table" (pas de grille, pas de cellule) */
@@ -119,6 +193,7 @@ async function ouvrirTable() {
   renderFiltres();
   document.getElementById('resultats-recherche').classList.add('hidden');
   await renderListeArticlesCellule();
+  sauvegarderNavigation('table');
 }
 
 function retourGrille() {
@@ -132,6 +207,7 @@ function retourGrille() {
     document.getElementById('ligne-etage').classList.remove('hidden');
     document.getElementById('note-zone-table').classList.add('hidden');
     etat.emplacement = { allee: null, facade: null, etage: null };
+    sauvegarderNavigation('accueil');
     return;
   }
 
@@ -303,6 +379,14 @@ function initModaleStockDLC() {
     if (_contexteStockDLC === 'vue') await renderContenuVueZone();
     else await renderListeArticlesCellule();
   });
+
+  // Valider avec Entrée (clavier physique sur PC, touche "Entrée/OK" du clavier virtuel mobile)
+  document.getElementById('modale-stock-dlc').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      document.getElementById('btn-confirmer-stock-dlc').click();
+    }
+  });
 }
 
 // ---------- Modale de déplacement ----------
@@ -379,6 +463,10 @@ function allerAccueil() {
 
   masquerPanelsPrincipaux();
   document.getElementById('panel-emplacement').classList.remove('hidden');
+
+  // Accueil sert aussi de bouton "réinitialiser" : on efface l'écran mémorisé,
+  // pour ne pas le restaurer automatiquement à la prochaine ouverture de l'app.
+  effacerNavigationMemorisee();
 }
 
 // ---------- Aide import ----------
@@ -524,6 +612,7 @@ async function afficherVueParZone() {
   document.getElementById('checkbox-stock-negatif').checked = false;
   etat.selectionEtiquettes = new Set();
   await renderContenuVueZone();
+  sauvegarderNavigation('vue');
 }
 
 function retourDepuisVueZone() {

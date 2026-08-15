@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await ouvrirDB();
   await rafraichirCacheArticles();
   initUI();
+  await restaurerNavigation();
   initDetectionMiseAJour();
 });
 

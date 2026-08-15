@@ -558,14 +558,23 @@ select {
 
 .zone-ligne-article {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   padding: 4px 0;
   font-size: 0.85rem;
 }
-.zone-ligne-article .case-select { margin-right: 2px; }
-.zone-ligne-article .code { flex: 1; font-weight: 700; }
+.zone-ligne-article .case-select { margin-right: 2px; flex: none; }
+.zone-ligne-article .code {
+  flex: 1 1 140px;
+  min-width: 0;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .zone-ligne-article .stock {
+  flex: none;
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--couleur-accent-fonce);
@@ -574,15 +583,25 @@ select {
   padding: 1px 6px;
   white-space: nowrap;
 }
-.zone-ligne-article .meta { color: var(--couleur-texte-att); font-size: 0.78rem; white-space: nowrap; }
+.zone-ligne-article .meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--couleur-texte-att);
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .icone-btn-mini {
   background: none;
   border: none;
   font-size: 0.95rem;
-  padding: 4px 6px;
+  padding: 6px 8px;
   cursor: pointer;
   flex: none;
+  min-width: 32px;
+  min-height: 32px;
 }
 
 .barre-impression {
