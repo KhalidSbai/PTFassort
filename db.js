@@ -68,14 +68,18 @@ async function remplacerCatalogue(nouveauxArticles) {
 
   const anciens = await getAllArticles();
   const ancienneMap = new Map(anciens.map((a) => [a.codeArticle, a]));
+  const nouveauxCodes = new Set(nouveauxArticles.map((a) => a.codeArticle));
 
   let ajoutes = 0;
   let misAJour = 0;
 
   const tx = db.transaction(['articles'], 'readwrite');
   const store = tx.objectStore('articles');
-  store.clear();
 
+  // On NE VIDE PLUS le store : un article déjà connu (code article, désignation, rayon,
+  // code-barre) ne doit jamais être perdu, même s'il disparaît d'un futur import théorique.
+  // C'est le seul moyen de garder ses informations pour les occurrences encore placées
+  // physiquement en cellule ("orphelines") et pour l'écran Stock.
   for (const art of nouveauxArticles) {
     const ancien = ancienneMap.get(art.codeArticle);
     if (ancien) {
@@ -87,18 +91,26 @@ async function remplacerCatalogue(nouveauxArticles) {
     store.put(art);
   }
 
+  // Articles déjà connus mais absents de ce nouvel import : on les conserve tels quels
+  // (désignation/rayon/famille/code-barre inchangés) mais avec un stock théorique ramené
+  // à 0, puisqu'ils ne figurent plus dans l'état théorique actuel.
+  const articlesConserves = anciens.filter((a) => !nouveauxCodes.has(a.codeArticle));
+  articlesConserves.forEach((a) => {
+    store.put({ ...a, stockTheorique: 0 });
+  });
+
   await new Promise((resolve, reject) => {
     tx.oncomplete = resolve;
     tx.onerror = () => reject(tx.error);
   });
 
-  // Détection des affectations orphelines (article retiré du nouvel état théorique)
-  const nouveauxCodes = new Set(nouveauxArticles.map((a) => a.codeArticle));
+  // Détection des affectations orphelines (article retiré du nouvel état théorique,
+  // mais toujours physiquement placé dans une cellule)
   const affectations = await getAllAffectations();
   const codesAffectes = new Set(affectations.map((a) => a.codeArticle));
   const orphelins = [...codesAffectes].filter((code) => !nouveauxCodes.has(code));
 
-  return { ajoutes, misAJour, total: nouveauxArticles.length, orphelins };
+  return { ajoutes, misAJour, conserves: articlesConserves.length, total: nouveauxArticles.length, orphelins };
 }
 
 // ---------- Affectations (placement dans les cellules) ----------

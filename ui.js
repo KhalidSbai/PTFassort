@@ -935,10 +935,13 @@ function initActionsEntete() {
     try {
       const resultat = await importerEtatTheorique(fichier);
       let message = `Import OK : ${resultat.ajoutes} nouveaux, ${resultat.misAJour} mis à jour (${resultat.total} au total).`;
+      if (resultat.conserves) {
+        message += ` ${resultat.conserves} article(s) absent(s) de ce fichier conservé(s) avec un stock ramené à 0.`;
+      }
       if (resultat.orphelins.length) {
         message += ` ⚠️ ${resultat.orphelins.length} article(s) affecté(s) à une cellule ne sont plus dans l'état théorique.`;
       }
-      afficherToast(message, resultat.orphelins.length ? 'erreur' : 'succes', 5000);
+      afficherToast(message, resultat.orphelins.length ? 'erreur' : 'succes', 6000);
       nettoyerFiltresApresImport();
       renderFiltres();
       if (etat.emplacement.allee) afficherGrilleCellules();
