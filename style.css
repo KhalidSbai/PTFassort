@@ -486,28 +486,59 @@ select {
   margin: 10px 0;
 }
 
-.stock-ligne {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+.stock-carte {
   background: #fff;
   border: 1px solid var(--couleur-bordure);
+  border-left: 4px solid var(--couleur-bordure);
   border-radius: var(--rayon);
   padding: 10px 12px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
-.stock-info { flex: 1; min-width: 0; }
+.stock-carte.stock-conforme {
+  border-left-color: var(--couleur-succes);
+}
+
+.stock-entete { margin-bottom: 8px; }
 .stock-code { font-weight: 700; font-size: 0.88rem; }
-.stock-meta { font-size: 0.75rem; color: var(--couleur-texte-att); margin-top: 2px; }
+
+.badge-conforme {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--couleur-succes);
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.stock-grille {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px 12px;
+  margin-bottom: 8px;
+}
+@media (min-width: 420px) {
+  .stock-grille { grid-template-columns: repeat(3, 1fr); }
+}
+
+.stock-champ { font-size: 0.85rem; font-weight: 700; }
+.stock-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--couleur-texte-att);
+}
 
 .stock-quantite {
-  flex: none;
-  font-size: 1.3rem;
-  font-weight: 800;
-  text-align: right;
-  white-space: nowrap;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-top: 1px solid var(--couleur-bordure);
+  padding-top: 8px;
 }
 
 .stock-fiabilite {

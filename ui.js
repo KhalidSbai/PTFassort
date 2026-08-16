@@ -9,6 +9,7 @@ const etat = {
   famillesCoches: new Set(),
   sortableInstance: null,
   selectionEtiquettes: new Set(), // ids d'affectations cochées dans la Vue, pour l'impression des étiquettes DLC
+  stockRayonsCoches: new Set(),   // filtre par rayon dans l'écran Stock (aucun coché par défaut = pas de restriction)
 };
 
 // ---------- Écran 1 : choix de l'emplacement ----------
@@ -525,6 +526,7 @@ async function afficherPanelStock() {
   masquerPanelsPrincipaux();
   document.getElementById('panel-stock').classList.remove('hidden');
   document.getElementById('input-recherche-stock').value = '';
+  etat.stockRayonsCoches = new Set();
   await renderContenuStock();
 }
 
@@ -541,24 +543,56 @@ function retourDepuisStock() {
   }
 }
 
+function renderFiltresRayonsStock(articles) {
+  const conteneur = document.getElementById('filtres-rayons-stock');
+  conteneur.innerHTML = '';
+
+  const rayons = [...new Set(articles.map((a) => a.rayon).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
+
+  rayons.forEach((rayon) => {
+    const chip = document.createElement('label');
+    chip.className = 'filtre-chip' + (etat.stockRayonsCoches.has(rayon) ? ' actif' : '');
+    chip.innerHTML = `<input type="checkbox" ${etat.stockRayonsCoches.has(rayon) ? 'checked' : ''}> ${rayon}`;
+    chip.querySelector('input').addEventListener('change', (e) => {
+      if (e.target.checked) etat.stockRayonsCoches.add(rayon);
+      else etat.stockRayonsCoches.delete(rayon);
+      chip.classList.toggle('actif', e.target.checked);
+      renderContenuStock();
+    });
+    conteneur.appendChild(chip);
+  });
+}
+
 /**
- * Affiche, pour chaque article, la quantité la plus fréquemment comptée par palette et
- * son pourcentage de fiabilité. Tout est recalculé ici à partir des stockReel actuellement
- * en base (jamais une valeur mise en cache) : après correction d'une quantité, rouvrir ou
- * rafraîchir cet écran donne toujours un résultat à jour.
+ * Affiche, pour chaque article : stock théorique, stock réel compté, écart entre les deux,
+ * quantité la plus fréquemment comptée par palette avec sa fiabilité, une ESTIMATION du
+ * nombre de palettes restantes non comptées (déduite de cette quantité fréquente — elle
+ * suppose des palettes de taille uniforme, ce n'est jamais un fait garanti), et un badge
+ * "✅ Conforme" quand théorique = réel (à condition qu'au moins une palette ait été comptée,
+ * pour ne pas marquer par erreur un article jamais vérifié).
+ * Tout est recalculé ici à partir des données actuellement en base (jamais une valeur mise
+ * en cache) : après correction d'une quantité, rouvrir ou rafraîchir cet écran donne
+ * toujours un résultat à jour.
  */
 async function renderContenuStock() {
   const texteRecherche = document.getElementById('input-recherche-stock').value;
   const [articles, affectations] = await Promise.all([getAllArticles(), getAllAffectations()]);
 
-  const quantitesParArticle = new Map();
+  const donneesParArticle = new Map(); // codeArticle -> { quantites: [], total: number }
   affectations.forEach((aff) => {
     if (aff.stockReel === null || aff.stockReel === undefined) return;
-    if (!quantitesParArticle.has(aff.codeArticle)) quantitesParArticle.set(aff.codeArticle, []);
-    quantitesParArticle.get(aff.codeArticle).push(aff.stockReel);
+    if (!donneesParArticle.has(aff.codeArticle)) donneesParArticle.set(aff.codeArticle, { quantites: [], total: 0 });
+    const entree = donneesParArticle.get(aff.codeArticle);
+    entree.quantites.push(aff.stockReel);
+    entree.total += aff.stockReel;
   });
 
+  renderFiltresRayonsStock(articles);
+
   let liste = [...articles].sort((a, b) => a.codeArticle.localeCompare(b.codeArticle, 'fr'));
+  if (etat.stockRayonsCoches.size) {
+    liste = liste.filter((a) => etat.stockRayonsCoches.has(a.rayon));
+  }
   if (texteRecherche.trim()) {
     liste = liste.filter((a) => correspondMotsCles(a.codeArticle + ' ' + a.designation, texteRecherche));
   }
@@ -572,30 +606,47 @@ async function renderContenuStock() {
   }
 
   liste.forEach((art) => {
-    const stat = calculerQuantiteFrequente(quantitesParArticle.get(art.codeArticle) || []);
+    const donnees = donneesParArticle.get(art.codeArticle);
+    const stat = calculerQuantiteFrequente(donnees ? donnees.quantites : []);
+    const stockTheorique = Number(art.stockTheorique ?? 0);
+    const aUneDonnee = !!donnees; // au moins une palette comptée
+    const stockReel = aUneDonnee ? donnees.total : null;
+    const ecart = aUneDonnee ? stockTheorique - stockReel : null;
+    const conforme = aUneDonnee && ecart === 0;
+    const palettesRestantes = aUneDonnee && stat ? estimerPalettesRestantes(stockTheorique, stockReel, stat.quantite) : null;
 
-    const ligne = document.createElement('div');
-    ligne.className = 'stock-ligne';
+    const carte = document.createElement('div');
+    carte.className = 'stock-carte' + (conforme ? ' stock-conforme' : '');
 
-    const info = document.createElement('div');
-    info.className = 'stock-info';
-    info.innerHTML = `
-      <div class="stock-code">${art.codeArticle} — ${art.designation}</div>
-      <div class="stock-meta">Stock théorique : ${art.stockTheorique ?? 0}${stat ? ` · ${stat.total} palette(s) comptée(s)` : ' · aucune palette comptée'}</div>
+    const entete = document.createElement('div');
+    entete.className = 'stock-entete';
+    entete.innerHTML = `
+      <div class="stock-code">${art.codeArticle} — ${art.designation}${conforme ? ' <span class="badge-conforme">✅ Conforme</span>' : ''}</div>
     `;
+    carte.appendChild(entete);
+
+    const grille = document.createElement('div');
+    grille.className = 'stock-grille';
+    grille.innerHTML = `
+      <div class="stock-champ"><span class="stock-label">Théorique</span>${stockTheorique}</div>
+      <div class="stock-champ"><span class="stock-label">Réel compté</span>${aUneDonnee ? stockReel : '—'}</div>
+      <div class="stock-champ"><span class="stock-label">Écart</span>${aUneDonnee ? (ecart > 0 ? '+' + ecart : ecart) : '—'}</div>
+      <div class="stock-champ"><span class="stock-label">Palettes comptées</span>${aUneDonnee ? stat.total : 0}</div>
+      <div class="stock-champ"><span class="stock-label">Palettes restantes (est.)</span>${palettesRestantes !== null ? palettesRestantes : '—'}</div>
+    `;
+    carte.appendChild(grille);
 
     const quantite = document.createElement('div');
     quantite.className = 'stock-quantite';
     if (stat) {
       const classeFiabilite = stat.pourcentage >= 75 ? 'fiabilite-haute' : stat.pourcentage < 50 ? 'fiabilite-basse' : '';
-      quantite.innerHTML = `${stat.quantite}<small class="stock-fiabilite ${classeFiabilite}">(${stat.pourcentage} %)</small>`;
+      quantite.innerHTML = `Quantité la plus fréquente / palette : <strong>${stat.quantite}</strong><small class="stock-fiabilite ${classeFiabilite}">(${stat.pourcentage} %)</small>`;
     } else {
-      quantite.innerHTML = `<small class="stock-fiabilite">—</small>`;
+      quantite.innerHTML = `<small class="stock-fiabilite">Aucune palette comptée</small>`;
     }
+    carte.appendChild(quantite);
 
-    ligne.appendChild(info);
-    ligne.appendChild(quantite);
-    conteneur.appendChild(ligne);
+    conteneur.appendChild(carte);
   });
 }
 

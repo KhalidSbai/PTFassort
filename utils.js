@@ -144,6 +144,19 @@ function calculerQuantiteFrequente(quantites) {
   };
 }
 
+/**
+ * Estime le nombre de palettes restantes (non comptées) pour atteindre le stock théorique,
+ * à partir de la quantité la plus fréquente par palette. C'EST UNE ESTIMATION (suppose des
+ * palettes de taille uniforme), jamais un fait garanti — à afficher comme telle.
+ * Retourne null si non calculable (quantité fréquente inconnue/nulle).
+ */
+function estimerPalettesRestantes(stockTheorique, stockReelTotal, quantiteFrequente) {
+  if (!quantiteFrequente || quantiteFrequente <= 0) return null;
+  const ecart = Number(stockTheorique) - Number(stockReelTotal);
+  if (ecart <= 0) return 0;
+  return Math.ceil(ecart / quantiteFrequente);
+}
+
 /** Horodatage compact pour les noms de fichiers (ex: 2026-08-02_1830) */
 function horodatageFichier() {
   const d = new Date();
