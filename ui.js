@@ -611,7 +611,7 @@ async function renderContenuStock() {
     const stockTheorique = Number(art.stockTheorique ?? 0);
     const aUneDonnee = !!donnees; // au moins une palette comptée
     const stockReel = aUneDonnee ? donnees.total : null;
-    const ecart = aUneDonnee ? stockTheorique - stockReel : null;
+    const ecart = aUneDonnee ? stockReel - stockTheorique : null;
     const conforme = aUneDonnee && ecart === 0;
     const palettesRestantes = aUneDonnee && stat ? estimerPalettesRestantes(stockTheorique, stockReel, stat.quantite) : null;
 
