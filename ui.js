@@ -170,6 +170,7 @@ async function ouvrirCellule(numero) {
 
   document.getElementById('cellule-titre').textContent = libelleEmplacement({ ...etat.emplacement, cellule: numero });
   document.getElementById('input-recherche').value = '';
+  document.getElementById('checkbox-inclure-stock-negatif').checked = false;
 
   // Les rayons/familles cochés sont volontairement conservés d'une cellule à l'autre
   // (pas de réinitialisation ici) pour éviter de re-cocher le même rayon en boucle
@@ -189,6 +190,7 @@ async function ouvrirTable() {
 
   document.getElementById('cellule-titre').textContent = 'Table';
   document.getElementById('input-recherche').value = '';
+  document.getElementById('checkbox-inclure-stock-negatif').checked = false;
 
   renderFiltres();
   document.getElementById('resultats-recherche').classList.add('hidden');
@@ -238,7 +240,8 @@ function renderFiltres() {
 
 const lancerRecherche = debounce(() => {
   const texte = document.getElementById('input-recherche').value;
-  const resultats = rechercherArticles(texte, etat.rayonsCoches, etat.famillesCoches);
+  const inclureStockNegatif = document.getElementById('checkbox-inclure-stock-negatif').checked;
+  const resultats = rechercherArticles(texte, etat.rayonsCoches, etat.famillesCoches, inclureStockNegatif);
   renderResultatsRecherche(resultats, texte);
 }, 120);
 
@@ -254,12 +257,13 @@ function renderResultatsRecherche(resultats, texte) {
   }
 
   resultats.forEach((art) => {
+    const stockNegatif = Number(art.stockTheorique) <= 0;
     const item = document.createElement('div');
-    item.className = 'resultat-item';
+    item.className = 'resultat-item' + (stockNegatif ? ' resultat-stock-negatif' : '');
     item.innerHTML = `
-      <div class="resultat-code">${art.codeArticle}</div>
+      <div class="resultat-code">${stockNegatif ? '⚠️ ' : ''}${art.codeArticle}</div>
       <div class="resultat-designation">${art.designation}</div>
-      <div class="resultat-meta">${art.rayon}${art.famille ? ' · ' + art.famille : ''}</div>
+      <div class="resultat-meta">${art.rayon}${art.famille ? ' · ' + art.famille : ''}${stockNegatif ? ' · stock théorique : ' + (art.stockTheorique ?? 0) : ''}</div>
     `;
     item.addEventListener('click', () => ajouterArticleACelluleOuverte(art.codeArticle));
     conteneur.appendChild(item);
@@ -664,7 +668,7 @@ async function renderContenuVueZone() {
   if (document.getElementById('checkbox-stock-negatif').checked) {
     liste = liste.filter((a) => {
       const art = parCode.get(a.codeArticle);
-      return art && Number(art.stockTheorique) <= 0;
+      return !art || Number(art.stockTheorique) <= 0; // absent du catalogue (inconnu) OU ≤ 0
     });
   }
   liste = trierAffectationsPourAffichage(liste);
@@ -676,7 +680,7 @@ async function renderContenuVueZone() {
 
   if (!liste.length) {
     const filtreStockNegatif = document.getElementById('checkbox-stock-negatif').checked;
-    const raison = texteRecherche.trim() ? ' pour cette recherche' : filtreStockNegatif ? ' avec un stock théorique ≤ 0' : alleeFiltre ? ' pour cette zone' : '';
+    const raison = texteRecherche.trim() ? ' pour cette recherche' : filtreStockNegatif ? ' avec un stock théorique ≤ 0 ou inconnu' : alleeFiltre ? ' pour cette zone' : '';
     conteneur.innerHTML = `<p class="message-vide">Aucun article enregistré${raison}.</p>`;
     return;
   }
@@ -989,6 +993,7 @@ function initUI() {
   initFormulaireEmplacement();
   document.getElementById('btn-retour-grille').addEventListener('click', retourGrille);
   document.getElementById('input-recherche').addEventListener('input', lancerRecherche);
+  document.getElementById('checkbox-inclure-stock-negatif').addEventListener('change', lancerRecherche);
   initModaleDeplacer();
   initModaleStockDLC();
   initAideImport();

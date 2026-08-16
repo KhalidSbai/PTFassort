@@ -36,7 +36,7 @@ function getFamillesDisponibles() {
 }
 
 /**
- * Recherche + filtrage parmi les articles encore en stock.
+ * Recherche + filtrage parmi le catalogue.
  * La recherche texte fonctionne par mots-clés indépendants : chaque mot tapé
  * doit se retrouver quelque part dans le code article ou la désignation,
  * sans tenir compte de l'ordre des mots ni de la présence d'autres mots entre eux.
@@ -45,12 +45,20 @@ function getFamillesDisponibles() {
  * Les chips de rayon/famille sont désactivées par défaut : tant qu'aucune n'est
  * cochée, aucune restriction n'est appliquée (tous les rayons/familles sortent).
  * Dès qu'on en coche une ou plusieurs, seuls les articles correspondants sortent.
+ *
+ * Par défaut (`inclureStockNegatif` = false), seuls les articles encore en stock
+ * (`stockTheorique > 0`) sont proposés, pour optimiser le nombre de choix pendant
+ * l'ajout. Cocher "Inclure aussi les articles à stock théorique ≤ 0" élargit la
+ * recherche à tout le catalogue ; ces articles restent identifiables visuellement
+ * dans les résultats (classe CSS ajoutée côté `ui.js`).
  * @param {string} texte - texte tapé par l'utilisateur
  * @param {Set<string>} rayonsCoches - rayons actuellement cochés (aucun par défaut)
  * @param {Set<string>} famillesCoches - familles actuellement cochées (aucune par défaut)
+ * @param {boolean} inclureStockNegatif - si vrai, élargit la recherche aux articles à stock ≤ 0
  */
-function rechercherArticles(texte, rayonsCoches, famillesCoches) {
-  return getCacheArticlesEnStock().filter((art) => {
+function rechercherArticles(texte, rayonsCoches, famillesCoches, inclureStockNegatif = false) {
+  const pool = inclureStockNegatif ? _cacheArticles : getCacheArticlesEnStock();
+  return pool.filter((art) => {
     if (rayonsCoches && rayonsCoches.size && !rayonsCoches.has(art.rayon)) return false;
     if (famillesCoches && famillesCoches.size && art.famille && !famillesCoches.has(art.famille)) return false;
     return correspondMotsCles(art.codeArticle + ' ' + art.designation, texte);

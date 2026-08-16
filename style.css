@@ -225,6 +225,18 @@ select {
   min-height: 44px;
 }
 
+.filtre-inclure-stock-negatif {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--couleur-danger);
+  margin-top: 8px;
+  cursor: pointer;
+}
+.filtre-inclure-stock-negatif input { width: 18px; height: 18px; }
+
 .filtres {
   display: flex;
   flex-wrap: wrap;
@@ -268,9 +280,16 @@ select {
 .resultat-item:last-child { border-bottom: none; }
 .resultat-item:active { background: #eef4ff; }
 
+.resultat-item.resultat-stock-negatif {
+  background: #fff7ed;
+  border-left: 4px solid var(--couleur-danger);
+}
+.resultat-item.resultat-stock-negatif:active { background: #fdebe0; }
+
 .resultat-code { font-weight: 700; font-size: 0.88rem; }
 .resultat-designation { font-size: 0.85rem; color: var(--couleur-texte-att); }
 .resultat-meta { font-size: 0.75rem; color: var(--couleur-texte-att); }
+.resultat-stock-negatif .resultat-meta { color: var(--couleur-danger); font-weight: 600; }
 
 /* ---------- Liste articles de la cellule ---------- */
 .liste-articles {

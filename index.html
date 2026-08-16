@@ -84,6 +84,10 @@
 
     <div class="ajout-article">
       <input type="search" id="input-recherche" placeholder="Rechercher un article (code ou désignation)">
+      <label class="filtre-inclure-stock-negatif">
+        <input type="checkbox" id="checkbox-inclure-stock-negatif">
+        Inclure aussi les articles à stock théorique ≤ 0
+      </label>
       <div id="filtres-rayons" class="filtres"></div>
       <div id="resultats-recherche" class="resultats-recherche hidden"></div>
     </div>
@@ -112,7 +116,7 @@
 
     <label class="filtre-stock-negatif">
       <input type="checkbox" id="checkbox-stock-negatif">
-      ⚠️ Afficher uniquement les articles avec un stock théorique ≤ 0
+      ⚠️ Afficher uniquement les articles avec un stock théorique ≤ 0 ou inconnu
     </label>
 
     <input type="search" id="input-recherche-vue" placeholder="Rechercher un article (code ou désignation) pour trouver où il se trouve">
