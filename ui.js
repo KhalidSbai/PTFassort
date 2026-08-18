@@ -318,11 +318,26 @@ function renderArticlesEpingles() {
 
   epingles.forEach((art) => {
     const stockNegatif = Number(art.stockTheorique) <= 0;
+    const bloc = document.createElement('span');
+    bloc.className = 'bloc-epingle-rapide';
+
     const btn = document.createElement('button');
     btn.className = 'bouton-epingle-rapide' + (stockNegatif ? ' stock-negatif' : '');
     btn.innerHTML = `${stockNegatif ? '⚠️ ' : ''}${art.codeArticle} — ${art.designation}`;
     btn.addEventListener('click', () => ajouterArticleACelluleOuverte(art.codeArticle));
-    liste.appendChild(btn);
+    bloc.appendChild(btn);
+
+    const btnRetirer = document.createElement('button');
+    btnRetirer.className = 'bouton-retirer-epingle';
+    btnRetirer.title = 'Désépingler';
+    btnRetirer.textContent = '✖️';
+    btnRetirer.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await basculerEpingle(art.codeArticle, false);
+    });
+    bloc.appendChild(btnRetirer);
+
+    liste.appendChild(bloc);
   });
 }
 
