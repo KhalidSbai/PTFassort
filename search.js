@@ -36,6 +36,15 @@ function getFamillesDisponibles() {
 }
 
 /**
+ * Articles épinglés (⭐), triés par code article. Un article épinglé reste proposé
+ * pour un ajout rapide même s'il n'est plus en stock théorique — l'épingle est un
+ * choix explicite de l'utilisateur, il n'est pas soumis au filtre "en stock".
+ */
+function getCacheArticlesEpingles() {
+  return _cacheArticles.filter((a) => a.epingle).sort((a, b) => a.codeArticle.localeCompare(b.codeArticle, 'fr'));
+}
+
+/**
  * Recherche + filtrage parmi le catalogue.
  * La recherche texte fonctionne par mots-clés indépendants : chaque mot tapé
  * doit se retrouver quelque part dans le code article ou la désignation,

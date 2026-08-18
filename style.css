@@ -273,23 +273,79 @@ select {
 }
 
 .resultat-item {
-  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--couleur-bordure);
-  cursor: pointer;
 }
 .resultat-item:last-child { border-bottom: none; }
-.resultat-item:active { background: #eef4ff; }
 
 .resultat-item.resultat-stock-negatif {
   background: #fff7ed;
   border-left: 4px solid var(--couleur-danger);
 }
-.resultat-item.resultat-stock-negatif:active { background: #fdebe0; }
+
+.resultat-contenu {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.resultat-contenu:active { opacity: 0.7; }
 
 .resultat-code { font-weight: 700; font-size: 0.88rem; }
 .resultat-designation { font-size: 0.85rem; color: var(--couleur-texte-att); }
 .resultat-meta { font-size: 0.75rem; color: var(--couleur-texte-att); }
 .resultat-stock-negatif .resultat-meta { color: var(--couleur-danger); font-weight: 600; }
+
+.resultat-epingle,
+.resultat-avec-qte {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  padding: 6px;
+  cursor: pointer;
+  flex: none;
+  min-width: 36px;
+  min-height: 36px;
+}
+.resultat-epingle.actif { color: #f5a623; }
+
+/* ---------- Articles épinglés ---------- */
+.epingles-conteneur {
+  border: 1px solid var(--couleur-accent);
+  background: #eef4ff;
+  border-radius: var(--rayon);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+.epingles-titre {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--couleur-accent-fonce);
+  margin-bottom: 6px;
+}
+.liste-epingles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.bouton-epingle-rapide {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid var(--couleur-accent);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--couleur-accent-fonce);
+  cursor: pointer;
+}
+.bouton-epingle-rapide:active { background: #eef4ff; }
+.bouton-epingle-rapide.stock-negatif { border-color: var(--couleur-danger); color: var(--couleur-danger); }
 
 /* ---------- Liste articles de la cellule ---------- */
 .liste-articles {
@@ -356,6 +412,49 @@ select {
   max-width: 480px;
   border-radius: 16px 16px 0 0;
   padding: 18px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modale-contenu-large {
+  max-width: 560px;
+}
+
+.dupliquer-cellule-btn {
+  position: relative;
+  background: #fff;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon);
+  padding: 14px 6px;
+  font-size: 1rem;
+  font-weight: 700;
+  min-height: 56px;
+  cursor: pointer;
+  color: var(--couleur-texte);
+}
+.dupliquer-cellule-btn:active { background: #eef4ff; }
+.dupliquer-cellule-btn.a-des-ajouts { border-color: var(--couleur-accent); background: #eef4ff; }
+
+.dupliquer-badge-compte {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: var(--couleur-accent);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+.btn-table-dupliquer {
+  width: 100%;
+  margin-top: 8px;
 }
 
 .modale-actions {

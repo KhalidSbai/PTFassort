@@ -127,6 +127,13 @@ async function getAffectationsParCellule(cle) {
   return resultats.sort((a, b) => a.ordre - b.ordre);
 }
 
+/** Retourne toutes les occurrences d'un article donné, tous emplacements confondus */
+async function getAffectationsParArticle(codeArticle) {
+  const tx = await _transaction(['affectations']);
+  const index = tx.objectStore('affectations').index('parArticle');
+  return _promesseRequete(index.getAll(codeArticle));
+}
+
 /** Retourne une map { cle -> nombre d'articles } pour toutes les cellules connues */
 async function compterParCle() {
   const tout = await getAllAffectations();
@@ -153,6 +160,7 @@ async function ajouterAffectation({ codeArticle, allee, facade, etage, cellule, 
     ordre: ordreMax + 1,
     stockReel: stockReel === null || stockReel === undefined || stockReel === '' ? null : Number(stockReel), // facultatif
     dlc: dlc || null, // facultatif, format 'YYYY-MM-DD'
+    misAJourLe: new Date().toISOString(), // sert à retrouver la dernière quantité/DLC saisie pour cet article
   };
 
   const tx = await _transaction(['affectations'], 'readwrite');
@@ -227,6 +235,7 @@ async function modifierStockDLC(id, { stockReel, dlc }) {
 
   affectation.stockReel = stockReel === '' || stockReel === null || stockReel === undefined ? null : Number(stockReel);
   affectation.dlc = dlc || null;
+  affectation.misAJourLe = new Date().toISOString();
 
   store.put(affectation);
   return new Promise((resolve, reject) => {
@@ -254,6 +263,40 @@ async function modifierCodeBarreArticle(codeArticle, codeBarre) {
     tx.oncomplete = () => resolve(article);
     tx.onerror = () => reject(tx.error);
   });
+}
+
+/** Épingle/désépingle un article, pour l'ajouter rapidement sans le rechercher à chaque fois */
+async function modifierArticleEpingle(codeArticle, epingle) {
+  const tx = await _transaction(['articles'], 'readwrite');
+  const store = tx.objectStore('articles');
+  const article = await _promesseRequete(store.get(codeArticle));
+  if (!article) throw new Error('Article introuvable');
+
+  article.epingle = !!epingle;
+
+  store.put(article);
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve(article);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/**
+ * Retourne la dernière quantité (stockReel) et DLC connues pour un article, à partir de
+ * son occurrence la plus récemment mise à jour (misAJourLe) parmi celles où au moins l'une
+ * des deux est renseignée. Retourne { stockReel, dlc } ou null si rien n'est connu.
+ */
+async function getDerniereQuantiteDLC(codeArticle) {
+  const tx = await _transaction(['affectations']);
+  const index = tx.objectStore('affectations').index('parArticle');
+  const occurrences = await _promesseRequete(index.getAll(codeArticle));
+
+  const connues = occurrences.filter((a) => a.stockReel !== null || a.dlc !== null);
+  if (!connues.length) return null;
+
+  connues.sort((a, b) => (b.misAJourLe || '').localeCompare(a.misAJourLe || ''));
+  const derniere = connues[0];
+  return { stockReel: derniere.stockReel, dlc: derniere.dlc };
 }
 
 /**

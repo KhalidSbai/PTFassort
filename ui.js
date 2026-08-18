@@ -177,6 +177,7 @@ async function ouvrirCellule(numero) {
   // (pas de réinitialisation ici) pour éviter de re-cocher le même rayon en boucle
   // quand on enregistre plusieurs articles du même rayon à la suite.
   renderFiltres();
+  renderArticlesEpingles();
   document.getElementById('resultats-recherche').classList.add('hidden');
   await renderListeArticlesCellule();
   sauvegarderNavigation('cellule');
@@ -194,6 +195,7 @@ async function ouvrirTable() {
   document.getElementById('checkbox-inclure-stock-negatif').checked = false;
 
   renderFiltres();
+  renderArticlesEpingles();
   document.getElementById('resultats-recherche').classList.add('hidden');
   await renderListeArticlesCellule();
   sauvegarderNavigation('table');
@@ -261,13 +263,66 @@ function renderResultatsRecherche(resultats, texte) {
     const stockNegatif = Number(art.stockTheorique) <= 0;
     const item = document.createElement('div');
     item.className = 'resultat-item' + (stockNegatif ? ' resultat-stock-negatif' : '');
-    item.innerHTML = `
+
+    const btnEpingle = document.createElement('button');
+    btnEpingle.className = 'resultat-epingle' + (art.epingle ? ' actif' : '');
+    btnEpingle.title = art.epingle ? 'Désépingler' : 'Épingler pour un ajout rapide';
+    btnEpingle.textContent = art.epingle ? '⭐' : '☆';
+    btnEpingle.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await basculerEpingle(art.codeArticle, !art.epingle);
+    });
+    item.appendChild(btnEpingle);
+
+    const contenu = document.createElement('div');
+    contenu.className = 'resultat-contenu';
+    contenu.innerHTML = `
       <div class="resultat-code">${stockNegatif ? '⚠️ ' : ''}${art.codeArticle}</div>
       <div class="resultat-designation">${art.designation}</div>
       <div class="resultat-meta">${art.rayon}${art.famille ? ' · ' + art.famille : ''}${stockNegatif ? ' · stock théorique : ' + (art.stockTheorique ?? 0) : ''}</div>
     `;
-    item.addEventListener('click', () => ajouterArticleACelluleOuverte(art.codeArticle));
+    contenu.addEventListener('click', () => ajouterArticleACelluleOuverte(art.codeArticle));
+    item.appendChild(contenu);
+
+    const btnAvecQte = document.createElement('button');
+    btnAvecQte.className = 'resultat-avec-qte';
+    btnAvecQte.title = 'Ajouter avec quantité/DLC';
+    btnAvecQte.textContent = '🏷️';
+    btnAvecQte.addEventListener('click', (e) => {
+      e.stopPropagation();
+      ouvrirModaleAjoutQteDLC(art.codeArticle);
+    });
+    item.appendChild(btnAvecQte);
+
     conteneur.appendChild(item);
+  });
+}
+
+/** Épingle/désépingle un article et rafraîchit les écrans concernés (section épinglés + résultats) */
+async function basculerEpingle(codeArticle, epingle) {
+  await modifierArticleEpingle(codeArticle, epingle);
+  await rafraichirCacheArticles();
+  afficherToast(epingle ? 'Article épinglé' : 'Article désépinglé', 'succes');
+  renderArticlesEpingles();
+  lancerRecherche();
+}
+
+/** Affiche la section des articles épinglés, pour un ajout instantané sans recherche */
+function renderArticlesEpingles() {
+  const epingles = getCacheArticlesEpingles();
+  const conteneur = document.getElementById('epingles-conteneur');
+  const liste = document.getElementById('liste-epingles');
+
+  conteneur.classList.toggle('hidden', epingles.length === 0);
+  liste.innerHTML = '';
+
+  epingles.forEach((art) => {
+    const stockNegatif = Number(art.stockTheorique) <= 0;
+    const btn = document.createElement('button');
+    btn.className = 'bouton-epingle-rapide' + (stockNegatif ? ' stock-negatif' : '');
+    btn.innerHTML = `${stockNegatif ? '⚠️ ' : ''}${art.codeArticle} — ${art.designation}`;
+    btn.addEventListener('click', () => ajouterArticleACelluleOuverte(art.codeArticle));
+    liste.appendChild(btn);
   });
 }
 
@@ -275,6 +330,46 @@ async function ajouterArticleACelluleOuverte(codeArticle) {
   await ajouterAffectation({ codeArticle, ...etat.emplacement, cellule: etat.celluleOuverte });
   afficherToast('Article ajouté', 'succes');
   await renderListeArticlesCellule();
+}
+
+// ---------- Modale : ajout rapide avec quantité/DLC pré-remplies ----------
+
+let _codeArticleAjoutQteDLC = null;
+
+async function ouvrirModaleAjoutQteDLC(codeArticle) {
+  _codeArticleAjoutQteDLC = codeArticle;
+  document.getElementById('ajout-qte-dlc-titre').textContent = `Ajouter ${codeArticle} avec quantité/DLC`;
+
+  const derniere = await getDerniereQuantiteDLC(codeArticle);
+  document.getElementById('input-ajout-stock-reel').value = derniere?.stockReel ?? '';
+  document.getElementById('input-ajout-dlc').value = derniere?.dlc ? derniere.dlc.slice(0, 7) : '';
+
+  document.getElementById('modale-ajout-qte-dlc').classList.remove('hidden');
+  document.getElementById('input-ajout-stock-reel').focus();
+}
+
+function initModaleAjoutQteDLC() {
+  document.getElementById('btn-annuler-ajout-qte-dlc').addEventListener('click', () => {
+    document.getElementById('modale-ajout-qte-dlc').classList.add('hidden');
+  });
+
+  const confirmer = async () => {
+    const stockReel = document.getElementById('input-ajout-stock-reel').value;
+    const moisAnnee = document.getElementById('input-ajout-dlc').value;
+    const dlc = moisAnnee ? `${moisAnnee}-01` : '';
+    await ajouterAffectation({ codeArticle: _codeArticleAjoutQteDLC, ...etat.emplacement, cellule: etat.celluleOuverte, stockReel, dlc });
+    document.getElementById('modale-ajout-qte-dlc').classList.add('hidden');
+    afficherToast('Article ajouté', 'succes');
+    await renderListeArticlesCellule();
+  };
+
+  document.getElementById('btn-confirmer-ajout-qte-dlc').addEventListener('click', confirmer);
+  document.getElementById('modale-ajout-qte-dlc').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      confirmer();
+    }
+  });
 }
 
 async function renderListeArticlesCellule() {
@@ -306,6 +401,7 @@ async function renderListeArticlesCellule() {
       </div>
       <div class="article-actions">
         <button class="icone-btn btn-stock-dlc" title="Stock / DLC / Code-barres">🏷️</button>
+        <button class="icone-btn btn-dupliquer" title="Dupliquer vers d'autres emplacements">📋</button>
         <button class="icone-btn btn-deplacer" title="Déplacer">↔️</button>
         <button class="icone-btn btn-supprimer" title="Supprimer">🗑️</button>
       </div>
@@ -313,6 +409,7 @@ async function renderListeArticlesCellule() {
     li.querySelector('.btn-supprimer').addEventListener('click', () => supprimerArticleCellule(aff.id));
     li.querySelector('.btn-deplacer').addEventListener('click', () => ouvrirModaleDeplacer(aff.id));
     li.querySelector('.btn-stock-dlc').addEventListener('click', () => ouvrirModaleStockDLC(aff, art));
+    li.querySelector('.btn-dupliquer').addEventListener('click', () => ouvrirModaleDupliquer(aff));
     liste.appendChild(li);
   });
 
@@ -390,6 +487,132 @@ function initModaleStockDLC() {
     if (e.key === 'Enter') {
       e.preventDefault();
       document.getElementById('btn-confirmer-stock-dlc').click();
+    }
+  });
+}
+
+// ---------- Modale de duplication (multi-emplacements, ajout à chaque tap) ----------
+
+let _dupliquerCodeArticle = null;
+
+async function ouvrirModaleDupliquer(aff) {
+  _dupliquerCodeArticle = aff.codeArticle;
+  document.getElementById('dupliquer-titre').textContent = `Dupliquer ${aff.codeArticle}`;
+  document.getElementById('dupliquer-stock-reel').value = aff.stockReel ?? '';
+  document.getElementById('dupliquer-dlc').value = aff.dlc ? aff.dlc.slice(0, 7) : '';
+
+  // Préremplit avec la zone actuellement ouverte (utile pour dupliquer vers d'autres cellules
+  // de la même zone), sauf si elle-même est la Table (alors on démarre sur l'allée 1).
+  if (!estZoneTable(etat.emplacement.allee) && etat.emplacement.allee) {
+    document.getElementById('dupliquer-allee').value = etat.emplacement.allee;
+    if (etat.emplacement.facade) {
+      const radio = document.querySelector(`input[name="dupliquer-facade"][value="${etat.emplacement.facade}"]`);
+      if (radio) radio.checked = true;
+    }
+    if (etat.emplacement.etage) document.getElementById('dupliquer-etage').value = etat.emplacement.etage;
+  } else {
+    document.getElementById('dupliquer-allee').value = '1';
+    document.querySelector('input[name="dupliquer-facade"][value="Gauche"]').checked = true;
+    document.getElementById('dupliquer-etage').value = '1';
+  }
+
+  await majZoneDupliquer();
+  document.getElementById('modale-dupliquer').classList.remove('hidden');
+}
+
+/** Reconstruit la grille (ou le bouton Table) de la modale de duplication selon la zone choisie,
+ *  avec le nombre déjà présent de cet article dans chaque cellule. */
+async function majZoneDupliquer() {
+  const allee = document.getElementById('dupliquer-allee').value;
+  const versTable = estZoneTable(allee);
+
+  document.getElementById('dupliquer-ligne-facade').classList.toggle('hidden', versTable);
+  document.getElementById('dupliquer-ligne-etage').classList.toggle('hidden', versTable);
+  document.getElementById('dupliquer-grille-cellules').classList.toggle('hidden', versTable);
+  document.getElementById('dupliquer-bouton-table').classList.toggle('hidden', !versTable);
+
+  const occurrences = await getAffectationsParArticle(_dupliquerCodeArticle);
+
+  if (versTable) {
+    const compte = occurrences.filter((a) => estZoneTable(a.allee)).length;
+    document.getElementById('dupliquer-bouton-table').textContent =
+      compte > 0 ? `Ajouter dans la Table (${compte} déjà présent(s))` : 'Ajouter dans la Table';
+    return;
+  }
+
+  const facade = document.querySelector('input[name="dupliquer-facade"]:checked').value;
+  document.getElementById('dupliquer-etage').disabled = facade === 'Sol';
+  const etage = facade === 'Sol' ? null : document.getElementById('dupliquer-etage').value;
+
+  const grille = document.getElementById('dupliquer-grille-cellules');
+  grille.innerHTML = '';
+  numerosCellules().forEach((numero) => {
+    const compte = occurrences.filter((a) =>
+      String(a.allee) === String(allee) &&
+      a.facade === facade &&
+      (facade === 'Sol' || Number(a.etage) === Number(etage)) &&
+      a.cellule === numero
+    ).length;
+
+    const btn = document.createElement('button');
+    btn.className = 'dupliquer-cellule-btn' + (compte > 0 ? ' a-des-ajouts' : '');
+    btn.innerHTML = `${zeroPad(numero)}${compte > 0 ? `<span class="dupliquer-badge-compte">${compte}</span>` : ''}`;
+    btn.addEventListener('click', () => ajouterDansCelluleDupliquer(numero, btn));
+    grille.appendChild(btn);
+  });
+}
+
+/** Ajoute une occurrence de l'article dans la cellule tapée, et met à jour son badge immédiatement */
+async function ajouterDansCelluleDupliquer(numero, boutonEl) {
+  const allee = document.getElementById('dupliquer-allee').value;
+  const facade = document.querySelector('input[name="dupliquer-facade"]:checked').value;
+  const etage = facade === 'Sol' ? null : document.getElementById('dupliquer-etage').value;
+  const stockReel = document.getElementById('dupliquer-stock-reel').value;
+  const moisAnnee = document.getElementById('dupliquer-dlc').value;
+  const dlc = moisAnnee ? `${moisAnnee}-01` : '';
+
+  await ajouterAffectation({ codeArticle: _dupliquerCodeArticle, allee, facade, etage, cellule: numero, stockReel, dlc });
+
+  const badgeExistant = boutonEl.querySelector('.dupliquer-badge-compte');
+  boutonEl.classList.add('a-des-ajouts');
+  if (badgeExistant) {
+    badgeExistant.textContent = Number(badgeExistant.textContent) + 1;
+  } else {
+    const badge = document.createElement('span');
+    badge.className = 'dupliquer-badge-compte';
+    badge.textContent = '1';
+    boutonEl.appendChild(badge);
+  }
+
+  afficherToast(`Ajouté en cellule ${zeroPad(numero)}`, 'succes', 1200);
+}
+
+/** Ajoute une occurrence de l'article dans la Table, et met à jour le compteur du bouton */
+async function ajouterDansTableDupliquer() {
+  const stockReel = document.getElementById('dupliquer-stock-reel').value;
+  const moisAnnee = document.getElementById('dupliquer-dlc').value;
+  const dlc = moisAnnee ? `${moisAnnee}-01` : '';
+
+  await ajouterAffectation({ codeArticle: _dupliquerCodeArticle, allee: 'Table', facade: null, etage: null, cellule: null, stockReel, dlc });
+
+  const btn = document.getElementById('dupliquer-bouton-table');
+  const compteAvant = Number((btn.textContent.match(/\((\d+)/) || [])[1] || 0);
+  btn.textContent = `Ajouter dans la Table (${compteAvant + 1} déjà présent(s))`;
+
+  afficherToast('Ajouté dans la Table', 'succes', 1200);
+}
+
+function initModaleDupliquer() {
+  document.getElementById('dupliquer-allee').addEventListener('change', majZoneDupliquer);
+  document.querySelectorAll('input[name="dupliquer-facade"]').forEach((r) => r.addEventListener('change', majZoneDupliquer));
+  document.getElementById('dupliquer-etage').addEventListener('change', majZoneDupliquer);
+  document.getElementById('dupliquer-bouton-table').addEventListener('click', ajouterDansTableDupliquer);
+
+  document.getElementById('btn-fermer-dupliquer').addEventListener('click', async () => {
+    document.getElementById('modale-dupliquer').classList.add('hidden');
+    // Des occurrences ont pu être ajoutées dans la cellule/Table actuellement ouverte derrière la modale
+    if (etat.celluleOuverte || estZoneTable(etat.emplacement.allee)) {
+      await renderListeArticlesCellule();
     }
   });
 }
@@ -1047,6 +1270,8 @@ function initUI() {
   document.getElementById('checkbox-inclure-stock-negatif').addEventListener('change', lancerRecherche);
   initModaleDeplacer();
   initModaleStockDLC();
+  initModaleAjoutQteDLC();
+  initModaleDupliquer();
   initAideImport();
   initImportCSVCellules();
   initActionsEntete();

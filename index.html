@@ -83,6 +83,11 @@
     <h2 class="panel-title" id="cellule-titre">Cellule</h2>
 
     <div class="ajout-article">
+      <div id="epingles-conteneur" class="epingles-conteneur hidden">
+        <div class="epingles-titre">⭐ Épinglés</div>
+        <div id="liste-epingles" class="liste-epingles"></div>
+      </div>
+
       <input type="search" id="input-recherche" placeholder="Rechercher un article (code ou désignation)">
       <label class="filtre-inclure-stock-negatif">
         <input type="checkbox" id="checkbox-inclure-stock-negatif">
@@ -262,6 +267,71 @@
     <div class="modale-actions">
       <button id="btn-annuler-stock-dlc" class="btn btn-secondaire">Annuler</button>
       <button id="btn-confirmer-stock-dlc" class="btn btn-principal">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale : ajout rapide avec quantité/DLC pré-remplies (dernières valeurs connues pour cet article) -->
+<div id="modale-ajout-qte-dlc" class="modale hidden">
+  <div class="modale-contenu">
+    <h3 id="ajout-qte-dlc-titre">Ajouter avec quantité/DLC</h3>
+    <p class="aide-texte">Pré-rempli avec les dernières valeurs connues pour cet article — modifie si besoin, ou valide directement avec Entrée.</p>
+    <div class="field-row">
+      <label for="input-ajout-stock-reel">Stock réel</label>
+      <input type="number" id="input-ajout-stock-reel" min="0" step="1" placeholder="Ex : 12">
+    </div>
+    <div class="field-row">
+      <label for="input-ajout-dlc">DLC (mois/année)</label>
+      <input type="month" id="input-ajout-dlc">
+    </div>
+    <div class="modale-actions">
+      <button id="btn-annuler-ajout-qte-dlc" class="btn btn-secondaire">Annuler</button>
+      <button id="btn-confirmer-ajout-qte-dlc" class="btn btn-principal">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale : dupliquer un article (avec sa quantité/DLC) vers plusieurs emplacements -->
+<div id="modale-dupliquer" class="modale hidden">
+  <div class="modale-contenu modale-contenu-large">
+    <h3 id="dupliquer-titre">Dupliquer</h3>
+    <p class="aide-texte">Chaque tap sur une cellule ajoute un exemplaire de cet article avec les valeurs ci-dessous (rappuie sur la même cellule pour en ajouter plusieurs). Change de zone/façade/étage à tout moment sans fermer cette fenêtre.</p>
+
+    <div class="field-row">
+      <label for="dupliquer-stock-reel">Stock réel</label>
+      <input type="number" id="dupliquer-stock-reel" min="0" step="1" placeholder="Ex : 12">
+    </div>
+    <div class="field-row">
+      <label for="dupliquer-dlc">DLC (mois/année)</label>
+      <input type="month" id="dupliquer-dlc">
+    </div>
+
+    <div class="field-row">
+      <label for="dupliquer-allee">Zone</label>
+      <select id="dupliquer-allee">
+        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="Table">Table</option>
+      </select>
+    </div>
+    <div class="field-row" id="dupliquer-ligne-facade">
+      <span class="field-label">Façade</span>
+      <div class="radio-group" id="dupliquer-radio-facade">
+        <label><input type="radio" name="dupliquer-facade" value="Gauche" checked> Gauche</label>
+        <label><input type="radio" name="dupliquer-facade" value="Droite"> Droite</label>
+        <label><input type="radio" name="dupliquer-facade" value="Sol"> Sol</label>
+      </div>
+    </div>
+    <div class="field-row" id="dupliquer-ligne-etage">
+      <label for="dupliquer-etage">Étage</label>
+      <select id="dupliquer-etage">
+        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
+      </select>
+    </div>
+
+    <div id="dupliquer-grille-cellules" class="grille-cellules"></div>
+    <button id="dupliquer-bouton-table" class="btn btn-principal btn-table-dupliquer hidden">Ajouter dans la Table</button>
+
+    <div class="modale-actions">
+      <button id="btn-fermer-dupliquer" class="btn btn-principal">Terminé</button>
     </div>
   </div>
 </div>

@@ -65,7 +65,8 @@ Le catalogue théorique complet, remplacé à chaque import du fichier théoriqu
   stockTheorique: number,
   rayon: string,
   famille: string,         // '' si non fourni
-  codeBarre: string | null // facultatif, saisi/modifié à tout moment via la modale 🏷️, partagé par toutes les occurrences de cet article
+  codeBarre: string | null, // facultatif, saisi/modifié à tout moment via la modale 🏷️, partagé par toutes les occurrences de cet article
+  epingle: boolean          // facultatif (undefined = false), pour l'ajout rapide sans recherche (règle 25)
 }
 ```
 
@@ -82,7 +83,8 @@ Une ligne = une occurrence d'un article placé dans une cellule (les doublons so
   cle: string,              // cleEmplacement() — sert à l'index 'parCellule'
   ordre: number,            // position dans la cellule, pour le glisser-déposer
   stockReel: number | null, // facultatif, propre à cette occurrence, saisi/modifié à tout moment via la modale 🏷️
-  dlc: string | null        // facultatif, propre à cette occurrence, format 'YYYY-MM-DD'
+  dlc: string | null,       // facultatif, propre à cette occurrence, format 'YYYY-MM-DD'
+  misAJourLe: string        // horodatage ISO, mis à jour à la création et à chaque modification stock/DLC (règle 24)
 }
 ```
 
@@ -120,6 +122,9 @@ Une ligne = une occurrence d'un article placé dans une cellule (les doublons so
 21. **Le dernier écran affiché est mémorisé et restauré à la réouverture de l'app** (changement de fenêtre/onglet, fermeture puis réouverture) : `sauvegarderNavigation(panel)` dans `ui.js` écrit dans `localStorage` (clé `cellules-entrepot-navigation`) l'écran actif (`grille` / `cellule` / `table` / `vue`), l'emplacement courant et, pour la Vue, le filtre de zone sélectionné. `restaurerNavigation()`, appelée une fois au démarrage (`app.js`), reconstruit exactement cet écran. **Le bouton "🏠 Accueil" sert aussi de bouton "réinitialiser"** : il efface l'écran mémorisé (`effacerNavigationMemorisee()`) en plus de revenir à l'écran de sélection, donc la prochaine ouverture de l'app repart bien de zéro. Le stockage échoue silencieusement (navigation privée, quota) sans jamais bloquer l'app.
 22. **Validation au clavier (Entrée) de la modale "Infos complémentaires"** : appuyer sur Entrée dans n'importe lequel des 3 champs (stock réel, DLC, code-barres) déclenche le même enregistrement que le bouton "Enregistrer", aussi bien au clavier physique (PC) qu'au clavier virtuel (mobile). Voir le listener `keydown` sur `#modale-stock-dlc` dans `initModaleStockDLC()` (`ui.js`).
 23. **Ligne d'article de la Vue : passe à la ligne plutôt que de déborder hors écran** : `.zone-ligne-article` utilise `flex-wrap: wrap` et les zones de texte (code/désignation, méta) sont tronquées avec ellipsis (`text-overflow: ellipsis`) plutôt que forcées sur une seule ligne — sur un mobile étroit avec beaucoup de contenu, les boutons 🏷️/🗑️ passent à la ligne suivante au lieu d'être poussés hors de l'écran et donc intappables.
+24. **Ajout rapide avec dernière quantité/DLC pré-remplies** : chaque résultat de recherche a un bouton 🏷️ "Ajouter avec quantité/DLC" qui ouvre `#modale-ajout-qte-dlc`, pré-remplie avec les **dernières valeurs connues pour ce même article** (n'importe où dans l'entrepôt) — voir `getDerniereQuantiteDLC()` dans `db.js`, qui s'appuie sur le nouveau champ `misAJourLe` (horodatage ISO) présent sur chaque affectation, mis à jour à la création (`ajouterAffectation()`) et à chaque modification (`modifierStockDLC()`). L'ajout instantané au clic reste inchangé (comportement par défaut conservé) ; ce bouton est une option en plus. Entrée valide directement, comme les autres modales.
+25. **Articles épinglés (⭐) pour un ajout sans recherche** : un bouton ☆/⭐ sur chaque résultat de recherche épingle/désépingle un article (`epingle: boolean` sur l'article du catalogue, voir `modifierArticleEpingle()` dans `db.js`). Les articles épinglés apparaissent dans une section dédiée en haut de l'écran de cellule (`#epingles-conteneur`, visible seulement si au moins un article est épinglé), sous forme de boutons à un tap = ajout instantané — pratique quand un même article revient dans plusieurs cellules d'une même zone/façade/étage. Un article épinglé reste proposé même s'il n'est plus en stock théorique (l'épingle est un choix explicite, non soumis au filtre de la règle 9).
+26. **Duplication d'un article vers plusieurs emplacements (`#modale-dupliquer`)** : le bouton 📋 sur une ligne d'article ouvre une modale avec la quantité/DLC de la source pré-remplies (modifiables) et un sélecteur de zone/façade/étage. **Chaque tap sur une cellule de la grille ajoute immédiatement une nouvelle occurrence** de l'article (avec les valeurs actuelles des champs quantité/DLC) — retaper sur la même cellule en ajoute une autre (doublons volontaires, règle 2), et un badge numéroté sur chaque cellule affiche combien cet article y est déjà présent, mis à jour en direct sans recharger toute la grille. On peut changer de zone/façade/étage (ou choisir la Table, qui remplace la grille par un simple bouton) sans jamais fermer la modale, pour dupliquer vers plusieurs emplacements différents en une seule session. "Terminé" ferme la modale et rafraîchit l'écran sous-jacent si des occurrences ont été ajoutées dans la cellule/Table actuellement ouverte. Voir `getAffectationsParArticle()` (nouvelle requête groupée par article, `db.js`) et `ouvrirModaleDupliquer()`/`majZoneDupliquer()`/`ajouterDansCelluleDupliquer()` (`ui.js`).
 
 ## 7. Décisions prises suite aux clarifications (importantes pour la cohérence)
 
