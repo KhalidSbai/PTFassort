@@ -63,6 +63,10 @@ button { font-family: inherit; }
   .header-actions { grid-template-columns: repeat(8, 1fr); }
 }
 
+@media (min-width: 700px) {
+  .header-actions { grid-template-columns: repeat(9, 1fr); }
+}
+
 .btn {
   border: none;
   border-radius: var(--rayon);
@@ -591,6 +595,52 @@ select {
   cursor: pointer;
   white-space: nowrap;
 }
+
+/* ---------- Écran DLC ---------- */
+#input-recherche-dlc {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--couleur-bordure);
+  font-size: 1rem;
+  min-height: 44px;
+  margin: 10px 0;
+}
+
+.dlc-boutons-export {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.dlc-boutons-export .btn-secondaire { flex: 1; }
+
+.dlc-carte {
+  background: #fff;
+  border: 1px solid var(--couleur-bordure);
+  border-left: 4px solid var(--couleur-accent);
+  border-radius: var(--rayon);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dlc-carte.dlc-perime { border-left-color: var(--couleur-danger); }
+
+.dlc-date {
+  flex: none;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--couleur-accent-fonce);
+  min-width: 64px;
+}
+.dlc-perime .dlc-date { color: var(--couleur-danger); }
+
+.dlc-infos { flex: 1; min-width: 0; }
+.dlc-code { font-weight: 700; font-size: 0.85rem; }
+.dlc-meta { font-size: 0.75rem; color: var(--couleur-texte-att); margin-top: 2px; }
+
+.dlc-actions { display: flex; gap: 2px; flex: none; }
 
 /* ---------- Écran Stock ---------- */
 #input-recherche-stock {

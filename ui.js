@@ -10,6 +10,7 @@ const etat = {
   sortableInstance: null,
   selectionEtiquettes: new Set(), // ids d'affectations cochées dans la Vue, pour l'impression des étiquettes DLC
   stockRayonsCoches: new Set(),   // filtre par rayon dans l'écran Stock (aucun coché par défaut = pas de restriction)
+  dlcRayonsCoches: new Set(),     // filtre par rayon dans l'écran DLC (aucun coché par défaut = pas de restriction)
 };
 
 // ---------- Écran 1 : choix de l'emplacement ----------
@@ -494,6 +495,7 @@ function initModaleStockDLC() {
     document.getElementById('modale-stock-dlc').classList.add('hidden');
     afficherToast('Informations enregistrées', 'succes');
     if (_contexteStockDLC === 'vue') await renderContenuVueZone();
+    else if (_contexteStockDLC === 'dlc') await renderContenuDLC();
     else await renderListeArticlesCellule();
   });
 
@@ -758,6 +760,144 @@ function initImportCSVCellules() {
   document.getElementById('btn-telecharger-modele-cellules').addEventListener('click', telechargerModeleAjoutCellules);
 }
 
+// ---------- Écran DLC : gestion des articles proches de leur DLC ----------
+
+async function afficherPanelDLC() {
+  masquerPanelsPrincipaux();
+  document.getElementById('panel-dlc').classList.remove('hidden');
+  document.getElementById('input-recherche-dlc').value = '';
+  etat.dlcRayonsCoches = new Set();
+  await renderContenuDLC();
+}
+
+function retourDepuisDLC() {
+  document.getElementById('panel-dlc').classList.add('hidden');
+  document.getElementById('panel-emplacement').classList.remove('hidden');
+  if (estZoneTable(etat.emplacement.allee)) {
+    ouvrirTable();
+  } else if (etat.celluleOuverte) {
+    document.getElementById('panel-cellule-detail').classList.remove('hidden');
+    renderListeArticlesCellule();
+  } else if (etat.emplacement.allee) {
+    afficherGrilleCellules();
+  }
+}
+
+function renderFiltresRayonsDLC(liste) {
+  const conteneur = document.getElementById('filtres-rayons-dlc');
+  conteneur.innerHTML = '';
+
+  const rayons = [...new Set(liste.map(({ art }) => art.rayon).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
+
+  rayons.forEach((rayon) => {
+    const chip = document.createElement('label');
+    chip.className = 'filtre-chip' + (etat.dlcRayonsCoches.has(rayon) ? ' actif' : '');
+    chip.innerHTML = `<input type="checkbox" ${etat.dlcRayonsCoches.has(rayon) ? 'checked' : ''}> ${rayon}`;
+    chip.querySelector('input').addEventListener('change', (e) => {
+      if (e.target.checked) etat.dlcRayonsCoches.add(rayon);
+      else etat.dlcRayonsCoches.delete(rayon);
+      chip.classList.toggle('actif', e.target.checked);
+      renderContenuDLC();
+    });
+    conteneur.appendChild(chip);
+  });
+}
+
+/** Dernière liste filtrée affichée dans l'écran DLC, réutilisée telle quelle par les 2 exports
+ *  (garantit que le fichier généré correspond exactement à ce qui est affiché à l'écran). */
+let _dlcListeCourante = [];
+
+/**
+ * Affiche, triés par DLC la plus proche en premier, tous les articles ayant une DLC
+ * renseignée, filtrés par date maximum / recherche / rayon. Tout est recalculé ici à
+ * partir des données actuellement en base (jamais une valeur mise en cache).
+ */
+async function renderContenuDLC() {
+  const dateMax = document.getElementById('input-dlc-max').value; // format "YYYY-MM" ou vide
+  const texteRecherche = document.getElementById('input-recherche-dlc').value;
+
+  const [affectations, articles] = await Promise.all([getAllAffectations(), getAllArticles()]);
+  const parCode = new Map(articles.map((a) => [a.codeArticle, a]));
+
+  let liste = affectations
+    .filter((aff) => !!aff.dlc)
+    .map((aff) => ({ aff, art: parCode.get(aff.codeArticle) || { designation: '(article introuvable)', rayon: '', famille: '' } }));
+
+  if (dateMax) {
+    liste = liste.filter(({ aff }) => aff.dlc.slice(0, 7) <= dateMax);
+  }
+
+  renderFiltresRayonsDLC(liste);
+
+  if (etat.dlcRayonsCoches.size) {
+    liste = liste.filter(({ art }) => etat.dlcRayonsCoches.has(art.rayon));
+  }
+  if (texteRecherche.trim()) {
+    liste = liste.filter(({ aff, art }) => correspondMotsCles(aff.codeArticle + ' ' + art.designation, texteRecherche));
+  }
+
+  liste.sort((a, b) => a.aff.dlc.localeCompare(b.aff.dlc));
+  _dlcListeCourante = liste;
+
+  const conteneur = document.getElementById('contenu-dlc');
+  conteneur.innerHTML = '';
+
+  if (!liste.length) {
+    conteneur.innerHTML = '<p class="message-vide">Aucun article avec une DLC ne correspond à ces filtres.</p>';
+    return;
+  }
+
+  const aujourdhui = new Date().toISOString().slice(0, 10);
+
+  liste.forEach(({ aff, art }) => {
+    const perime = aff.dlc < aujourdhui;
+    const emplacement = estZoneTable(aff.allee) ? 'Table' : libelleEmplacementCourt({ allee: aff.allee, facade: aff.facade, etage: aff.etage, cellule: aff.cellule });
+
+    const carte = document.createElement('div');
+    carte.className = 'dlc-carte' + (perime ? ' dlc-perime' : '');
+
+    const date = document.createElement('div');
+    date.className = 'dlc-date';
+    date.textContent = formatDLCCourt(aff.dlc);
+    carte.appendChild(date);
+
+    const infos = document.createElement('div');
+    infos.className = 'dlc-infos';
+    infos.innerHTML = `
+      <div class="dlc-code">${aff.codeArticle} — ${art.designation}</div>
+      <div class="dlc-meta">${emplacement} · Stock : ${aff.stockReel ?? '—'}${art.rayon ? ' · ' + art.rayon : ''}</div>
+    `;
+    carte.appendChild(infos);
+
+    const actions = document.createElement('div');
+    actions.className = 'dlc-actions';
+
+    const btnModifier = document.createElement('button');
+    btnModifier.className = 'icone-btn-mini';
+    btnModifier.title = 'Modifier (stock / DLC / code-barres)';
+    btnModifier.textContent = '🏷️';
+    btnModifier.addEventListener('click', () => ouvrirModaleStockDLC(aff, art, 'dlc'));
+    actions.appendChild(btnModifier);
+
+    const btnSupprimer = document.createElement('button');
+    btnSupprimer.className = 'icone-btn-mini';
+    btnSupprimer.title = 'Supprimer cet article';
+    btnSupprimer.textContent = '🗑️';
+    btnSupprimer.addEventListener('click', async () => {
+      if (!confirm(`Supprimer "${aff.codeArticle} — ${art.designation}" de cet emplacement ?`)) return;
+      await supprimerAffectation(aff.id);
+      afficherToast('Article supprimé', 'succes');
+      await renderContenuDLC();
+    });
+    actions.appendChild(btnSupprimer);
+
+    carte.appendChild(actions);
+    conteneur.appendChild(carte);
+  });
+}
+
+const lancerRechercheDLC = debounce(renderContenuDLC, 120);
+
 // ---------- Écran Stock : quantité la plus fréquente par palette + fiabilité ----------
 
 async function afficherPanelStock() {
@@ -893,7 +1033,7 @@ const lancerRechercheStock = debounce(renderContenuStock, 120);
 // ---------- Vue de consultation : articles enregistrés par zone ----------
 
 function masquerPanelsPrincipaux() {
-  ['panel-emplacement', 'panel-cellules', 'panel-cellule-detail', 'panel-vue-zone', 'panel-stock'].forEach((id) =>
+  ['panel-emplacement', 'panel-cellules', 'panel-cellule-detail', 'panel-vue-zone', 'panel-stock', 'panel-dlc'].forEach((id) =>
     document.getElementById(id).classList.add('hidden')
   );
 }
@@ -1258,6 +1398,7 @@ function initActionsEntete() {
   });
 
   document.getElementById('btn-stock-csv').addEventListener('click', afficherPanelStock);
+  document.getElementById('btn-dlc').addEventListener('click', afficherPanelDLC);
 
   document.getElementById('btn-import-json').addEventListener('click', () => inputJSON.click());
   inputJSON.addEventListener('change', async (e) => {
@@ -1312,6 +1453,26 @@ function initUI() {
     try {
       await exporterStockCSV();
       afficherToast('Fichier stock généré', 'succes');
+    } catch (err) {
+      afficherToast(err.message, 'erreur');
+    }
+  });
+
+  document.getElementById('btn-retour-dlc').addEventListener('click', retourDepuisDLC);
+  document.getElementById('input-dlc-max').addEventListener('change', renderContenuDLC);
+  document.getElementById('input-recherche-dlc').addEventListener('input', lancerRechercheDLC);
+  document.getElementById('btn-export-dlc-sans-emplacement').addEventListener('click', () => {
+    try {
+      exporterDLCSansEmplacement(_dlcListeCourante);
+      afficherToast('Fichier DLC (sans emplacement) généré', 'succes');
+    } catch (err) {
+      afficherToast(err.message, 'erreur');
+    }
+  });
+  document.getElementById('btn-export-dlc-avec-emplacement').addEventListener('click', () => {
+    try {
+      exporterDLCAvecEmplacement(_dlcListeCourante);
+      afficherToast('Fichier DLC (avec emplacement) généré', 'succes');
     } catch (err) {
       afficherToast(err.message, 'erreur');
     }

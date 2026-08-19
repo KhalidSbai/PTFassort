@@ -21,6 +21,7 @@
     <button id="btn-import-json" class="btn btn-icon" title="Importer sauvegarde JSON">📂 Restaurer</button>
     <button id="btn-vue-zone" class="btn btn-icon" title="Voir les articles enregistrés par zone">👁️ Vue</button>
     <button id="btn-stock-csv" class="btn btn-icon" title="Voir le stock et la quantité la plus fréquente par article">📦 Stock</button>
+    <button id="btn-dlc" class="btn btn-icon" title="Gérer les articles proches de leur DLC">📅 DLC</button>
   </div>
   <input type="file" id="file-import-theorique" accept=".xlsx,.xls,.csv" hidden>
   <input type="file" id="file-import-json" accept=".json" hidden>
@@ -140,6 +141,28 @@
     <button id="btn-export-stock-csv" class="btn btn-secondaire">📤 Exporter en CSV</button>
 
     <div id="contenu-stock"></div>
+  </section>
+
+  <!-- Écran DLC : gestion des articles proches de leur DLC -->
+  <section id="panel-dlc" class="panel hidden">
+    <button id="btn-retour-dlc" class="btn btn-lien">← Retour</button>
+    <h2 class="panel-title">Articles par DLC</h2>
+    <p class="aide-texte">Triés par DLC la plus proche en premier. Recalculé à chaque ouverture à partir des DLC actuellement enregistrées.</p>
+
+    <div class="field-row">
+      <label for="input-dlc-max">Date maximum (mois/année)</label>
+      <input type="month" id="input-dlc-max">
+    </div>
+
+    <div id="filtres-rayons-dlc" class="filtres"></div>
+    <input type="search" id="input-recherche-dlc" placeholder="Rechercher un article (code ou désignation)">
+
+    <div class="dlc-boutons-export">
+      <button id="btn-export-dlc-sans-emplacement" class="btn btn-secondaire">📤 Fichier sans emplacement</button>
+      <button id="btn-export-dlc-avec-emplacement" class="btn btn-secondaire">📤 Fichier avec emplacement</button>
+    </div>
+
+    <div id="contenu-dlc"></div>
   </section>
 
   <!-- État vide / message -->

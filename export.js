@@ -96,6 +96,84 @@ function telechargerModeleAjoutCellules() {
   XLSX.writeFile(classeur, 'modele-ajout-articles-cellules.xlsx');
 }
 
+/**
+ * Télécharge le CSV "sans emplacement" de l'écran DLC : une ligne par couple
+ * (article, DLC), avec le stock réel total et le nombre de palettes regroupés.
+ * @param {Array<{aff:object, art:object}>} liste - la liste déjà filtrée affichée à l'écran
+ */
+function exporterDLCSansEmplacement(liste) {
+  if (!liste.length) {
+    throw new Error('Aucun article à exporter avec ces filtres.');
+  }
+
+  const groupes = new Map(); // "codeArticle|dlc" -> { ...totaux }
+  liste.forEach(({ aff, art }) => {
+    const cle = `${aff.codeArticle}|${aff.dlc}`;
+    if (!groupes.has(cle)) {
+      groupes.set(cle, {
+        codeArticle: aff.codeArticle,
+        designation: art.designation || '',
+        rayon: art.rayon || '',
+        dlc: aff.dlc,
+        stockTotal: 0,
+        nombrePalettes: 0,
+      });
+    }
+    const g = groupes.get(cle);
+    g.nombrePalettes += 1;
+    if (aff.stockReel !== null && aff.stockReel !== undefined) g.stockTotal += aff.stockReel;
+  });
+
+  const lignes = [...groupes.values()]
+    .sort((a, b) => a.dlc.localeCompare(b.dlc) || a.codeArticle.localeCompare(b.codeArticle, 'fr'))
+    .map((g) => ({
+      'Code article': g.codeArticle,
+      'Désignation': g.designation,
+      'Stock réel': g.stockTotal,
+      'Nombre de palettes': g.nombrePalettes,
+      'DLC': g.dlc,
+      'Rayon': g.rayon,
+    }));
+
+  const feuille = XLSX.utils.json_to_sheet(lignes);
+  const csv = XLSX.utils.sheet_to_csv(feuille, { FS: ';' });
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  telechargerBlob(blob, `dlc-sans-emplacement_${horodatageFichier()}.csv`);
+}
+
+/**
+ * Télécharge le CSV "avec emplacement" de l'écran DLC : une ligne par occurrence
+ * (aucun regroupement), avec sa localisation complète.
+ * @param {Array<{aff:object, art:object}>} liste - la liste déjà filtrée affichée à l'écran
+ */
+function exporterDLCAvecEmplacement(liste) {
+  if (!liste.length) {
+    throw new Error('Aucun article à exporter avec ces filtres.');
+  }
+
+  const trie = [...liste].sort((a, b) =>
+    a.aff.dlc.localeCompare(b.aff.dlc) || a.aff.codeArticle.localeCompare(b.aff.codeArticle, 'fr')
+  );
+
+  const lignes = trie.map(({ aff, art }) => ({
+    'Zone': aff.allee,
+    'Façade': aff.facade || '',
+    'Étage': aff.facade === 'Sol' ? '-' : (aff.etage ?? ''),
+    'Cellule': aff.cellule !== null && aff.cellule !== undefined ? zeroPad(aff.cellule) : '',
+    'Code article': aff.codeArticle,
+    'Désignation': art.designation || '',
+    'Stock réel': aff.stockReel ?? '',
+    'DLC': aff.dlc,
+    'Code-barres': art.codeBarre || '',
+    'Rayon': art.rayon || '',
+  }));
+
+  const feuille = XLSX.utils.json_to_sheet(lignes);
+  const csv = XLSX.utils.sheet_to_csv(feuille, { FS: ';' });
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  telechargerBlob(blob, `dlc-avec-emplacement_${horodatageFichier()}.csv`);
+}
+
 /** Télécharge un CSV listant le stock de chaque article (Code article, Désignation, Stock,
  *  quantité la plus fréquente par palette et son pourcentage de fiabilité).
  *  Ces deux dernières colonnes sont recalculées à chaque appel à partir des stockReel
