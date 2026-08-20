@@ -125,6 +125,11 @@
       ⚠️ Afficher uniquement les articles avec un stock théorique ≤ 0 ou inconnu
     </label>
 
+    <label class="filtre-stock-negatif filtre-non-saisi">
+      <input type="checkbox" id="checkbox-non-saisi">
+      📝 Afficher les articles avec quantité ou DLC non saisie
+    </label>
+
     <input type="search" id="input-recherche-vue" placeholder="Rechercher un article (code ou désignation) pour trouver où il se trouve">
 
     <div id="contenu-vue-zone"></div>
@@ -135,6 +140,11 @@
     <button id="btn-retour-stock" class="btn btn-lien">← Retour</button>
     <h2 class="panel-title">Stock par article</h2>
     <p class="aide-texte">Pour chaque article : la quantité la plus souvent comptée par palette, et son pourcentage de fiabilité (recalculés à chaque ouverture à partir des quantités actuellement enregistrées).</p>
+
+    <div class="filtres-ecart">
+      <label class="filtre-chip" id="chip-ecart-positif"><input type="checkbox" id="checkbox-ecart-positif"> Écart+</label>
+      <label class="filtre-chip" id="chip-ecart-negatif"><input type="checkbox" id="checkbox-ecart-negatif"> Écart-</label>
+    </div>
 
     <div id="filtres-rayons-stock" class="filtres"></div>
     <input type="search" id="input-recherche-stock" placeholder="Rechercher un article (code ou désignation)">

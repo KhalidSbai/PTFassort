@@ -131,7 +131,7 @@ function exporterDLCSansEmplacement(liste) {
       'Désignation': g.designation,
       'Stock réel': g.stockTotal,
       'Nombre de palettes': g.nombrePalettes,
-      'DLC': g.dlc,
+      'DLC': formatDLCCourt(g.dlc),
       'Rayon': g.rayon,
     }));
 
@@ -163,7 +163,7 @@ function exporterDLCAvecEmplacement(liste) {
     'Code article': aff.codeArticle,
     'Désignation': art.designation || '',
     'Stock réel': aff.stockReel ?? '',
-    'DLC': aff.dlc,
+    'DLC': formatDLCCourt(aff.dlc),
     'Code-barres': art.codeBarre || '',
     'Rayon': art.rayon || '',
   }));

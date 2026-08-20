@@ -68,6 +68,19 @@ function normaliser(texte) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+/** Rayons pour lesquels l'absence de DLC est normale (pas de date de péremption attendue) */
+const RAYONS_SANS_DLC_OBLIGATOIRE = ['entretien', 'beautesante'];
+
+/** Normalise un rayon pour comparaison robuste (minuscule, sans accents, sans espaces/tirets) */
+function normaliserRayonCourt(rayon) {
+  return normaliser(rayon).replace(/[\s-]/g, '');
+}
+
+/** Vrai si ce rayon fait partie de ceux où l'absence de DLC est normale (ENTRETIEN, BEAUTE-SANTE) */
+function estRayonSansDLCObligatoire(rayon) {
+  return RAYONS_SANS_DLC_OBLIGATOIRE.includes(normaliserRayonCourt(rayon));
+}
+
 /**
  * Vérifie que chaque mot de `texteRecherche` se retrouve quelque part dans `texteCible`,
  * sans tenir compte de l'ordre des mots ni des mots intercalés.
@@ -142,6 +155,13 @@ function calculerQuantiteFrequente(quantites) {
     total: quantites.length,
     pourcentage: Math.round((effectifMax / quantites.length) * 100),
   };
+}
+
+/** Convertit une DLC 'YYYY-MM-DD' en format court bien visible 'MM/AAAA' */
+function formatDLCCourt(dlc) {
+  if (!dlc) return '';
+  const [annee, mois] = dlc.split('-');
+  return `${mois}/${annee}`;
 }
 
 /**

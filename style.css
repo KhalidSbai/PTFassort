@@ -526,6 +526,7 @@ select {
   cursor: pointer;
 }
 .filtre-stock-negatif input { width: 18px; height: 18px; }
+.filtre-stock-negatif.filtre-non-saisi { color: var(--couleur-accent-fonce); }
 
 .zone-carte {
   border: 1px solid var(--couleur-bordure);
@@ -681,6 +682,13 @@ select {
   vertical-align: middle;
 }
 
+.filtres-ecart {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0;
+}
+.filtres-ecart .filtre-chip { flex: 1; justify-content: center; }
+
 .stock-grille {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -692,6 +700,8 @@ select {
 }
 
 .stock-champ { font-size: 0.85rem; font-weight: 700; }
+.stock-champ.stock-ecart-positif { color: var(--couleur-accent-fonce); }
+.stock-champ.stock-ecart-negatif { color: var(--couleur-danger); }
 .stock-label {
   display: block;
   font-size: 0.68rem;
@@ -865,6 +875,18 @@ select {
     font-weight: 600; /* moins gras -> caractères plus fins -> encore plus grand sans déborder */
     letter-spacing: 0;
     padding: 0 3px;
+  }
+
+  /* Variante texte (désignation à la place de la DLC, rayons ENTRETIEN/BEAUTE-SANTE sans DLC) :
+     texte potentiellement long -> taille bien plus modeste, avec retour à la ligne autorisé. */
+  .etiquette-haut.etiquette-haut-texte {
+    font-size: 6vw;
+    line-height: 1.2;
+    font-weight: 700;
+    letter-spacing: normal;
+    white-space: normal;
+    text-align: center;
+    padding: 0 30px;
   }
 
   .etiquette-bas {

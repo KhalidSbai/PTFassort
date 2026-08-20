@@ -904,6 +904,10 @@ async function afficherPanelStock() {
   masquerPanelsPrincipaux();
   document.getElementById('panel-stock').classList.remove('hidden');
   document.getElementById('input-recherche-stock').value = '';
+  document.getElementById('checkbox-ecart-positif').checked = false;
+  document.getElementById('checkbox-ecart-negatif').checked = false;
+  document.getElementById('chip-ecart-positif').classList.remove('actif');
+  document.getElementById('chip-ecart-negatif').classList.remove('actif');
   etat.stockRayonsCoches = new Set();
   await renderContenuStock();
 }
@@ -974,12 +978,27 @@ async function renderContenuStock() {
   if (texteRecherche.trim()) {
     liste = liste.filter((a) => correspondMotsCles(a.codeArticle + ' ' + a.designation, texteRecherche));
   }
+  const ecartPositifActif = document.getElementById('checkbox-ecart-positif').checked;
+  const ecartNegatifActif = document.getElementById('checkbox-ecart-negatif').checked;
+  if (ecartPositifActif || ecartNegatifActif) {
+    liste = liste.filter((art) => {
+      const donnees = donneesParArticle.get(art.codeArticle);
+      if (!donnees) return false; // écart inconnu (aucune palette comptée) : exclu si un filtre écart est actif
+      const ecart = donnees.total - Number(art.stockTheorique ?? 0);
+      if (ecartPositifActif && ecart > 0) return true;
+      if (ecartNegatifActif && ecart < 0) return true;
+      return false;
+    });
+  }
 
   const conteneur = document.getElementById('contenu-stock');
   conteneur.innerHTML = '';
 
   if (!liste.length) {
-    conteneur.innerHTML = `<p class="message-vide">Aucun article${texteRecherche.trim() ? ' pour cette recherche' : ''}.</p>`;
+    const raisonEcart = (ecartPositifActif && ecartNegatifActif) ? ' avec un écart non nul'
+      : ecartPositifActif ? ' avec un écart positif'
+      : ecartNegatifActif ? ' avec un écart négatif' : '';
+    conteneur.innerHTML = `<p class="message-vide">Aucun article${texteRecherche.trim() ? ' pour cette recherche' : raisonEcart}.</p>`;
     return;
   }
 
@@ -1008,7 +1027,7 @@ async function renderContenuStock() {
     grille.innerHTML = `
       <div class="stock-champ"><span class="stock-label">Théorique</span>${stockTheorique}</div>
       <div class="stock-champ"><span class="stock-label">Réel compté</span>${aUneDonnee ? stockReel : '—'}</div>
-      <div class="stock-champ"><span class="stock-label">Écart</span>${aUneDonnee ? (ecart > 0 ? '+' + ecart : ecart) : '—'}</div>
+      <div class="stock-champ${aUneDonnee && ecart > 0 ? ' stock-ecart-positif' : aUneDonnee && ecart < 0 ? ' stock-ecart-negatif' : ''}"><span class="stock-label">Écart</span>${aUneDonnee ? (ecart > 0 ? '+' + ecart : ecart) : '—'}</div>
       <div class="stock-champ"><span class="stock-label">Palettes comptées</span>${aUneDonnee ? stat.total : 0}</div>
       <div class="stock-champ"><span class="stock-label">Palettes restantes (est.)</span>${palettesRestantes !== null ? palettesRestantes : '—'}</div>
     `;
@@ -1043,6 +1062,7 @@ async function afficherVueParZone() {
   document.getElementById('panel-vue-zone').classList.remove('hidden');
   document.getElementById('input-recherche-vue').value = '';
   document.getElementById('checkbox-stock-negatif').checked = false;
+  document.getElementById('checkbox-non-saisi').checked = false;
   etat.selectionEtiquettes = new Set();
   await renderContenuVueZone();
   sauvegarderNavigation('vue');
@@ -1100,6 +1120,14 @@ async function renderContenuVueZone() {
       return !art || Number(art.stockTheorique) <= 0; // absent du catalogue (inconnu) OU ≤ 0
     });
   }
+  if (document.getElementById('checkbox-non-saisi').checked) {
+    liste = liste.filter((a) => {
+      const art = parCode.get(a.codeArticle);
+      const quantiteManquante = a.stockReel === null || a.stockReel === undefined;
+      const dlcManquante = !a.dlc && !estRayonSansDLCObligatoire(art?.rayon);
+      return quantiteManquante || dlcManquante;
+    });
+  }
   liste = trierAffectationsPourAffichage(liste);
 
   majBarreImpression();
@@ -1109,7 +1137,11 @@ async function renderContenuVueZone() {
 
   if (!liste.length) {
     const filtreStockNegatif = document.getElementById('checkbox-stock-negatif').checked;
-    const raison = texteRecherche.trim() ? ' pour cette recherche' : filtreStockNegatif ? ' avec un stock théorique ≤ 0 ou inconnu' : alleeFiltre ? ' pour cette zone' : '';
+    const filtreNonSaisi = document.getElementById('checkbox-non-saisi').checked;
+    const raison = texteRecherche.trim() ? ' pour cette recherche'
+      : filtreStockNegatif ? ' avec un stock théorique ≤ 0 ou inconnu'
+      : filtreNonSaisi ? ' avec une quantité ou une DLC non saisie'
+      : alleeFiltre ? ' pour cette zone' : '';
     conteneur.innerHTML = `<p class="message-vide">Aucun article enregistré${raison}.</p>`;
     return;
   }
@@ -1270,13 +1302,6 @@ function majBarreImpression() {
   barre.classList.toggle('hidden', n === 0);
 }
 
-/** Convertit une DLC 'YYYY-MM-DD' en format court bien visible 'MM/AAAA' */
-function formatDLCCourt(dlc) {
-  if (!dlc) return '';
-  const [annee, mois] = dlc.split('-');
-  return `${mois}/${annee}`;
-}
-
 /**
  * Construit une page A4 paysage par occurrence sélectionnée (DLC en très grand en haut,
  * puis en bas 3 colonnes : Code article en grand, Quantité en grand, reste des infos
@@ -1309,9 +1334,20 @@ async function genererPDFEtiquettes() {
     }
     if (art.rayon) champs.push(champEtiquette('Rayon', art.rayon));
 
+    // Pour les rayons ENTRETIEN/BEAUTE-SANTE, l'absence de DLC est normale : on affiche
+    // la désignation à la place, en plus petit (texte potentiellement long, avec retour à la ligne).
+    let contenuHaut = '—';
+    let hautEstTexte = false;
+    if (aff.dlc) {
+      contenuHaut = formatDLCCourt(aff.dlc);
+    } else if (estRayonSansDLCObligatoire(art.rayon)) {
+      contenuHaut = art.designation || '—';
+      hautEstTexte = true;
+    }
+
     return `
       <div class="page-etiquette">
-        <div class="etiquette-haut">${aff.dlc ? formatDLCCourt(aff.dlc) : '—'}</div>
+        <div class="etiquette-haut${hautEstTexte ? ' etiquette-haut-texte' : ''}">${contenuHaut}</div>
         <div class="etiquette-bas">
           <div class="etiquette-code">
             <span class="etiquette-mini-titre">Code</span>
@@ -1437,6 +1473,7 @@ function initUI() {
   document.getElementById('btn-retour-vue-zone').addEventListener('click', retourDepuisVueZone);
   document.getElementById('select-vue-allee').addEventListener('change', renderContenuVueZone);
   document.getElementById('checkbox-stock-negatif').addEventListener('change', renderContenuVueZone);
+  document.getElementById('checkbox-non-saisi').addEventListener('change', renderContenuVueZone);
   document.getElementById('input-recherche-vue').addEventListener('input', lancerRechercheVueZone);
   document.getElementById('btn-vider-allee').addEventListener('click', () => {
     const allee = document.getElementById('select-vue-allee').value;
@@ -1449,6 +1486,14 @@ function initUI() {
 
   document.getElementById('btn-retour-stock').addEventListener('click', retourDepuisStock);
   document.getElementById('input-recherche-stock').addEventListener('input', lancerRechercheStock);
+  document.getElementById('checkbox-ecart-positif').addEventListener('change', (e) => {
+    document.getElementById('chip-ecart-positif').classList.toggle('actif', e.target.checked);
+    renderContenuStock();
+  });
+  document.getElementById('checkbox-ecart-negatif').addEventListener('change', (e) => {
+    document.getElementById('chip-ecart-negatif').classList.toggle('actif', e.target.checked);
+    renderContenuStock();
+  });
   document.getElementById('btn-export-stock-csv').addEventListener('click', async () => {
     try {
       await exporterStockCSV();
