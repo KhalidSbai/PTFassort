@@ -11,6 +11,8 @@ const etat = {
   selectionEtiquettes: new Set(), // ids d'affectations cochées dans la Vue, pour l'impression des étiquettes DLC
   stockRayonsCoches: new Set(),   // filtre par rayon dans l'écran Stock (aucun coché par défaut = pas de restriction)
   dlcRayonsCoches: new Set(),     // filtre par rayon dans l'écran DLC (aucun coché par défaut = pas de restriction)
+  vueFacadesCoches: new Set(),    // filtre par façade dans la Vue (aucune cochée par défaut = pas de restriction)
+  vueEtagesCoches: new Set(),     // filtre par étage dans la Vue (aucun coché par défaut = pas de restriction)
 };
 
 // ---------- Écran 1 : choix de l'emplacement ----------
@@ -956,6 +958,12 @@ function renderFiltresRayonsStock(articles) {
  * en cache) : après correction d'une quantité, rouvrir ou rafraîchir cet écran donne
  * toujours un résultat à jour.
  */
+/** Dernière liste filtrée (et ses données de quantités) affichée dans l'écran Stock,
+ *  réutilisées telles quelles par l'export CSV (garantit que le fichier généré
+ *  correspond exactement à ce qui est actuellement filtré à l'écran). */
+let _stockListeCourante = [];
+let _stockDonneesCourantes = new Map();
+
 async function renderContenuStock() {
   const texteRecherche = document.getElementById('input-recherche-stock').value;
   const [articles, affectations] = await Promise.all([getAllArticles(), getAllAffectations()]);
@@ -990,6 +998,9 @@ async function renderContenuStock() {
       return false;
     });
   }
+
+  _stockListeCourante = liste;
+  _stockDonneesCourantes = donneesParArticle;
 
   const conteneur = document.getElementById('contenu-stock');
   conteneur.innerHTML = '';
@@ -1063,6 +1074,8 @@ async function afficherVueParZone() {
   document.getElementById('input-recherche-vue').value = '';
   document.getElementById('checkbox-stock-negatif').checked = false;
   document.getElementById('checkbox-non-saisi').checked = false;
+  etat.vueFacadesCoches = new Set();
+  etat.vueEtagesCoches = new Set();
   etat.selectionEtiquettes = new Set();
   await renderContenuVueZone();
   sauvegarderNavigation('vue');
@@ -1096,17 +1109,46 @@ function caseSelection(ids) {
   return input;
 }
 
+/** Construit les chips de filtre façade/étage de la Vue (valeurs fixes, pas dérivées des données) */
+function renderFiltresFacadeEtageVue() {
+  const construireChip = (conteneurId, valeur, ensembleCoches, callbackRafraichir) => {
+    const chip = document.createElement('label');
+    chip.className = 'filtre-chip' + (ensembleCoches.has(valeur) ? ' actif' : '');
+    chip.innerHTML = `<input type="checkbox" ${ensembleCoches.has(valeur) ? 'checked' : ''}> ${valeur}`;
+    chip.querySelector('input').addEventListener('change', (e) => {
+      if (e.target.checked) ensembleCoches.add(valeur);
+      else ensembleCoches.delete(valeur);
+      chip.classList.toggle('actif', e.target.checked);
+      callbackRafraichir();
+    });
+    document.getElementById(conteneurId).appendChild(chip);
+  };
+
+  document.getElementById('filtres-facade-vue').innerHTML = '';
+  ['Gauche', 'Droite', 'Sol'].forEach((facade) =>
+    construireChip('filtres-facade-vue', facade, etat.vueFacadesCoches, renderContenuVueZone)
+  );
+
+  document.getElementById('filtres-etage-vue').innerHTML = '';
+  ['1', '2', '3', '4', '5'].forEach((etage) =>
+    construireChip('filtres-etage-vue', etage, etat.vueEtagesCoches, renderContenuVueZone)
+  );
+}
+
 async function renderContenuVueZone() {
   const alleeFiltre = document.getElementById('select-vue-allee').value;
   const texteRecherche = document.getElementById('input-recherche-vue').value;
 
   document.getElementById('btn-vider-allee').classList.toggle('hidden', !alleeFiltre);
+  renderFiltresFacadeEtageVue();
 
   const [affectations, articles] = await Promise.all([getAllAffectations(), getAllArticles()]);
   const parCode = new Map(articles.map((a) => [a.codeArticle, a]));
 
   let liste = affectations;
   if (alleeFiltre) liste = liste.filter((a) => String(a.allee) === alleeFiltre);
+  if (etat.vueFacadesCoches.size) liste = liste.filter((a) => etat.vueFacadesCoches.has(a.facade));
+  if (etat.vueEtagesCoches.size) liste = liste.filter((a) => a.etage !== null && etat.vueEtagesCoches.has(String(a.etage)));
   if (texteRecherche.trim()) {
     liste = liste.filter((a) => {
       const art = parCode.get(a.codeArticle);
@@ -1494,9 +1536,9 @@ function initUI() {
     document.getElementById('chip-ecart-negatif').classList.toggle('actif', e.target.checked);
     renderContenuStock();
   });
-  document.getElementById('btn-export-stock-csv').addEventListener('click', async () => {
+  document.getElementById('btn-export-stock-csv').addEventListener('click', () => {
     try {
-      await exporterStockCSV();
+      exporterStockCSV(_stockListeCourante, _stockDonneesCourantes);
       afficherToast('Fichier stock généré', 'succes');
     } catch (err) {
       afficherToast(err.message, 'erreur');

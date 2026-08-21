@@ -178,37 +178,31 @@ function exporterDLCAvecEmplacement(liste) {
  *  quantité la plus fréquente par palette et son pourcentage de fiabilité).
  *  Ces deux dernières colonnes sont recalculées à chaque appel à partir des stockReel
  *  actuellement enregistrés sur les occurrences — jamais une valeur mise en cache. */
-async function exporterStockCSV() {
-  const [articles, affectations] = await Promise.all([getAllArticles(), getAllAffectations()]);
-  if (!articles.length) {
-    throw new Error("Le catalogue est vide — importe d'abord l'état théorique.");
+/** Télécharge un CSV listant le stock des articles actuellement filtrés dans l'écran Stock
+ *  (Code article, Désignation, Stock théorique, Stock réel, quantité la plus fréquente par
+ *  palette et sa fiabilité). Le fichier correspond exactement à ce qui est filtré à l'écran
+ *  (zone/rayon/recherche/écart+/écart-) : si rien n'est filtré, tout le catalogue sort.
+ * @param {Array<object>} liste - articles déjà filtrés, tels qu'affichés à l'écran
+ * @param {Map<string,{quantites:number[],total:number}>} donneesParArticle - quantités par article
+ */
+function exporterStockCSV(liste, donneesParArticle) {
+  if (!liste.length) {
+    throw new Error('Aucun article à exporter avec ces filtres.');
   }
 
-  // Pour chaque article : toutes les quantités de palettes connues (stockReel), et leur somme
-  const donneesParArticle = new Map();
-  affectations.forEach((aff) => {
-    if (aff.stockReel === null || aff.stockReel === undefined) return;
-    if (!donneesParArticle.has(aff.codeArticle)) donneesParArticle.set(aff.codeArticle, { quantites: [], total: 0 });
-    const entree = donneesParArticle.get(aff.codeArticle);
-    entree.quantites.push(aff.stockReel);
-    entree.total += aff.stockReel;
+  const lignes = liste.map((a) => {
+    const donnees = donneesParArticle.get(a.codeArticle);
+    const stat = calculerQuantiteFrequente(donnees ? donnees.quantites : []);
+    return {
+      'Code article': a.codeArticle,
+      'Désignation': a.designation || '',
+      'Stock théorique': a.stockTheorique ?? 0,
+      'Stock réel': donnees ? donnees.total : '',
+      'Quantité la plus fréquente / palette': stat ? stat.quantite : '',
+      'Fiabilité (%)': stat ? stat.pourcentage : '',
+      'Palettes comptées': stat ? stat.total : 0,
+    };
   });
-
-  const lignes = [...articles]
-    .sort((a, b) => a.codeArticle.localeCompare(b.codeArticle, 'fr'))
-    .map((a) => {
-      const donnees = donneesParArticle.get(a.codeArticle);
-      const stat = calculerQuantiteFrequente(donnees ? donnees.quantites : []);
-      return {
-        'Code article': a.codeArticle,
-        'Désignation': a.designation || '',
-        'Stock théorique': a.stockTheorique ?? 0,
-        'Stock réel': donnees ? donnees.total : '',
-        'Quantité la plus fréquente / palette': stat ? stat.quantite : '',
-        'Fiabilité (%)': stat ? stat.pourcentage : '',
-        'Palettes comptées': stat ? stat.total : 0,
-      };
-    });
 
   const feuille = XLSX.utils.json_to_sheet(lignes);
   const csv = XLSX.utils.sheet_to_csv(feuille, { FS: ';' }); // délimiteur point-virgule demandé
