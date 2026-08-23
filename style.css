@@ -159,6 +159,19 @@ select {
   min-height: 44px;
 }
 
+.field-row-chips {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.radio-group-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.radio-group-chips.desactive { opacity: 0.5; pointer-events: none; }
+
 .radio-group {
   display: flex;
   gap: 12px;
@@ -785,24 +798,33 @@ select {
 
 .zone-ligne-article {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
-  padding: 4px 0;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 0;
   font-size: 0.85rem;
+  border-bottom: 1px solid var(--couleur-bordure);
 }
-.zone-ligne-article .case-select { margin-right: 2px; flex: none; }
-.zone-ligne-article .code {
-  flex: 1 1 140px;
-  min-width: 0;
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.zone-ligne-article:last-child { border-bottom: none; }
+.zone-ligne-article .case-select { flex: none; margin-top: 3px; }
+
+.zone-ligne-contenu { flex: 1; min-width: 0; }
+.zone-ligne-contenu .code { font-weight: 700; font-size: 0.85rem; }
+.zone-ligne-contenu .designation {
+  font-size: 0.82rem;
+  color: var(--couleur-texte);
+  margin-top: 1px;
+  white-space: normal;   /* jamais tronquée : retour à la ligne autorisé */
+  word-break: break-word;
 }
-.zone-ligne-article .stock {
-  flex: none;
-  font-size: 0.75rem;
+.zone-ligne-contenu .badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.zone-ligne-contenu .stock,
+.zone-ligne-contenu .dlc-badge {
+  font-size: 0.72rem;
   font-weight: 600;
   color: var(--couleur-accent-fonce);
   background: #eef4ff;
@@ -810,14 +832,18 @@ select {
   padding: 1px 6px;
   white-space: nowrap;
 }
-.zone-ligne-article .meta {
-  flex: 1 1 auto;
-  min-width: 0;
+.zone-ligne-contenu .dlc-badge.perime { color: #fff; background: var(--couleur-danger); }
+.zone-ligne-contenu .meta {
+  font-size: 0.75rem;
   color: var(--couleur-texte-att);
-  font-size: 0.78rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin-top: 4px;
+}
+
+.zone-ligne-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: none;
 }
 
 .icone-btn-mini {

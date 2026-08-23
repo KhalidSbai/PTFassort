@@ -15,25 +15,64 @@ const etat = {
   vueEtagesCoches: new Set(),     // filtre par étage dans la Vue (aucun coché par défaut = pas de restriction)
 };
 
+// ---------- Chips à sélection unique (zone/façade/étage) ----------
+
+/** Coche le chip correspondant à `valeur` dans le groupe `name`, décoche les autres */
+function selectionnerChip(name, valeur) {
+  document.querySelectorAll(`input[name="${name}"]`).forEach((input) => {
+    const actif = valeur !== null && valeur !== undefined && String(input.value) === String(valeur);
+    input.checked = actif;
+    input.closest('.filtre-chip')?.classList.toggle('actif', actif);
+  });
+}
+
+/** Retourne la valeur du chip actuellement coché dans le groupe `name`, ou '' si aucun */
+function valeurChip(name) {
+  const input = document.querySelector(`input[name="${name}"]:checked`);
+  return input ? input.value : '';
+}
+
+/** Décoche tous les chips d'un groupe à sélection unique */
+function reinitialiserChips(name) {
+  document.querySelectorAll(`input[name="${name}"]`).forEach((input) => {
+    input.checked = false;
+    input.closest('.filtre-chip')?.classList.remove('actif');
+  });
+}
+
+/** Active/désactive (grisé, non cliquable) tout un groupe de chips */
+function activerChips(name, actif) {
+  const inputs = document.querySelectorAll(`input[name="${name}"]`);
+  inputs.forEach((input) => { input.disabled = !actif; });
+  inputs[0]?.closest('.radio-group-chips')?.classList.toggle('desactive', !actif);
+}
+
+/** Branche un callback sur chaque chip d'un groupe, et met à jour la classe visuelle .actif au changement */
+function initChipsRadio(name, callback) {
+  document.querySelectorAll(`input[name="${name}"]`).forEach((input) => {
+    input.addEventListener('change', () => {
+      document.querySelectorAll(`input[name="${name}"]`).forEach((i) => i.closest('.filtre-chip')?.classList.toggle('actif', i.checked));
+      callback();
+    });
+  });
+}
+
 // ---------- Écran 1 : choix de l'emplacement ----------
 
 function initFormulaireEmplacement() {
-  const selectAllee = document.getElementById('select-allee');
-  const radiosFacade = document.querySelectorAll('input[name="facade"]');
-  const selectEtage = document.getElementById('select-etage');
   const ligneFacade = document.getElementById('ligne-facade');
   const ligneEtage = document.getElementById('ligne-etage');
   const noteTable = document.getElementById('note-zone-table');
 
   function onChangement() {
-    const allee = selectAllee.value;
+    const allee = valeurChip('allee');
 
     if (estZoneTable(allee)) {
       ligneFacade.classList.add('hidden');
       ligneEtage.classList.add('hidden');
       noteTable.classList.remove('hidden');
-      radiosFacade.forEach((r) => (r.checked = false));
-      selectEtage.value = '';
+      reinitialiserChips('facade');
+      reinitialiserChips('etage');
       etat.emplacement = { allee: 'Table', facade: null, etage: null };
       ouvrirTable();
       return;
@@ -43,13 +82,12 @@ function initFormulaireEmplacement() {
     ligneEtage.classList.remove('hidden');
     noteTable.classList.add('hidden');
 
-    const facadeInput = document.querySelector('input[name="facade"]:checked');
-    const facade = facadeInput ? facadeInput.value : null;
+    const facade = valeurChip('facade') || null;
 
-    selectEtage.disabled = facade === 'Sol';
-    if (facade === 'Sol') selectEtage.value = '';
+    activerChips('etage', facade !== 'Sol');
+    if (facade === 'Sol') reinitialiserChips('etage');
 
-    const etage = facade === 'Sol' ? null : selectEtage.value;
+    const etage = facade === 'Sol' ? null : valeurChip('etage');
     const emplacementComplet = allee && facade && (facade === 'Sol' || etage);
 
     if (emplacementComplet) {
@@ -61,9 +99,9 @@ function initFormulaireEmplacement() {
     }
   }
 
-  selectAllee.addEventListener('change', onChangement);
-  radiosFacade.forEach((r) => r.addEventListener('change', onChangement));
-  selectEtage.addEventListener('change', onChangement);
+  initChipsRadio('allee', onChangement);
+  initChipsRadio('facade', onChangement);
+  initChipsRadio('etage', onChangement);
 }
 
 // ---------- Écran 2 : grille des 18 cellules ----------
@@ -113,7 +151,7 @@ async function restaurerNavigation() {
   if (!emp || !emp.allee) return;
 
   if (estZoneTable(emp.allee)) {
-    document.getElementById('select-allee').value = 'Table';
+    selectionnerChip('allee', 'Table');
     document.getElementById('ligne-facade').classList.add('hidden');
     document.getElementById('ligne-etage').classList.add('hidden');
     document.getElementById('note-zone-table').classList.remove('hidden');
@@ -122,14 +160,10 @@ async function restaurerNavigation() {
     return;
   }
 
-  document.getElementById('select-allee').value = emp.allee;
-  if (emp.facade) {
-    const radio = document.querySelector(`input[name="facade"][value="${emp.facade}"]`);
-    if (radio) radio.checked = true;
-  }
-  const selectEtage = document.getElementById('select-etage');
-  selectEtage.disabled = emp.facade === 'Sol';
-  if (emp.etage && emp.facade !== 'Sol') selectEtage.value = emp.etage;
+  selectionnerChip('allee', emp.allee);
+  if (emp.facade) selectionnerChip('facade', emp.facade);
+  activerChips('etage', emp.facade !== 'Sol');
+  if (emp.etage && emp.facade !== 'Sol') selectionnerChip('etage', emp.etage);
   etat.emplacement = emp;
 
   if (donnees.panel === 'cellule' && donnees.celluleOuverte) {
@@ -210,7 +244,7 @@ function retourGrille() {
   if (estZoneTable(etat.emplacement.allee)) {
     // Pas de grille pour la zone Table : on revient à l'écran de choix d'emplacement
     document.getElementById('panel-cellule-detail').classList.add('hidden');
-    document.getElementById('select-allee').value = '';
+    reinitialiserChips('allee');
     document.getElementById('ligne-facade').classList.remove('hidden');
     document.getElementById('ligne-etage').classList.remove('hidden');
     document.getElementById('note-zone-table').classList.add('hidden');
@@ -696,11 +730,10 @@ function initModaleDeplacer() {
 // ---------- Bouton Accueil ----------
 
 function allerAccueil() {
-  document.getElementById('select-allee').value = '';
-  document.querySelectorAll('input[name="facade"]').forEach((r) => (r.checked = false));
-  const selectEtage = document.getElementById('select-etage');
-  selectEtage.value = '';
-  selectEtage.disabled = false;
+  reinitialiserChips('allee');
+  reinitialiserChips('facade');
+  reinitialiserChips('etage');
+  activerChips('etage', true);
   document.getElementById('ligne-facade').classList.remove('hidden');
   document.getElementById('ligne-etage').classList.remove('hidden');
   document.getElementById('note-zone-table').classList.add('hidden');
@@ -1292,22 +1325,45 @@ function construireLigneArticleVue(aff, parCode) {
   ligne.className = 'zone-ligne-article';
   ligne.appendChild(caseSelection([aff.id]));
 
-  const code = document.createElement('span');
-  code.className = 'code';
-  code.textContent = `${aff.codeArticle} — ${art.designation}`;
-  ligne.appendChild(code);
+  const contenu = document.createElement('div');
+  contenu.className = 'zone-ligne-contenu';
 
+  const code = document.createElement('div');
+  code.className = 'code';
+  code.textContent = aff.codeArticle;
+  contenu.appendChild(code);
+
+  const designation = document.createElement('div');
+  designation.className = 'designation';
+  designation.textContent = art.designation; // jamais tronquée, retour à la ligne autorisé
+  contenu.appendChild(designation);
+
+  const badges = document.createElement('div');
+  badges.className = 'badges';
   if (aff.stockReel !== null && aff.stockReel !== undefined) {
     const stock = document.createElement('span');
     stock.className = 'stock';
     stock.textContent = `Stock : ${aff.stockReel}`;
-    ligne.appendChild(stock);
+    badges.appendChild(stock);
   }
+  if (aff.dlc) {
+    const perime = aff.dlc.slice(0, 7) < new Date().toISOString().slice(0, 7);
+    const dlc = document.createElement('span');
+    dlc.className = 'dlc-badge' + (perime ? ' perime' : '');
+    dlc.textContent = `DLC : ${formatDLCCourt(aff.dlc)}`;
+    badges.appendChild(dlc);
+  }
+  if (badges.children.length) contenu.appendChild(badges);
 
-  const meta = document.createElement('span');
+  const meta = document.createElement('div');
   meta.className = 'meta';
   meta.textContent = `${art.rayon}${art.famille ? ' · ' + art.famille : ''}`;
-  ligne.appendChild(meta);
+  contenu.appendChild(meta);
+
+  ligne.appendChild(contenu);
+
+  const actions = document.createElement('div');
+  actions.className = 'zone-ligne-actions';
 
   const btnModifier = document.createElement('button');
   btnModifier.className = 'icone-btn-mini';
@@ -1317,7 +1373,7 @@ function construireLigneArticleVue(aff, parCode) {
     e.stopPropagation();
     ouvrirModaleStockDLC(aff, art, 'vue');
   });
-  ligne.appendChild(btnModifier);
+  actions.appendChild(btnModifier);
 
   const btnSupprimer = document.createElement('button');
   btnSupprimer.className = 'icone-btn-mini';
@@ -1331,7 +1387,9 @@ function construireLigneArticleVue(aff, parCode) {
     afficherToast('Article supprimé', 'succes');
     await renderContenuVueZone();
   });
-  ligne.appendChild(btnSupprimer);
+  actions.appendChild(btnSupprimer);
+
+  ligne.appendChild(actions);
 
   return ligne;
 }

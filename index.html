@@ -32,38 +32,36 @@
   <!-- Étape 1 : choix de l'emplacement -->
   <section id="panel-emplacement" class="panel">
     <h2 class="panel-title">Emplacement</h2>
-    <div class="field-row">
-      <label for="select-allee">Zone</label>
-      <select id="select-allee">
-        <option value="">—</option>
-        <option value="1">1</option>
-        <option value="2">2</option>
-        <option value="3">3</option>
-        <option value="4">4</option>
-        <option value="Table">Table</option>
-      </select>
+    <div class="field-row field-row-chips">
+      <span class="field-label">Zone</span>
+      <div class="radio-group-chips" id="radio-allee">
+        <label class="filtre-chip"><input type="radio" name="allee" value="1"> 1</label>
+        <label class="filtre-chip"><input type="radio" name="allee" value="2"> 2</label>
+        <label class="filtre-chip"><input type="radio" name="allee" value="3"> 3</label>
+        <label class="filtre-chip"><input type="radio" name="allee" value="4"> 4</label>
+        <label class="filtre-chip"><input type="radio" name="allee" value="Table"> Table</label>
+      </div>
     </div>
     <p id="note-zone-table" class="aide-texte hidden">La zone "Table" n'a ni façade, ni étage, ni cellule : c'est un espace unique où déposer des articles sans emplacement précis.</p>
 
-    <div class="field-row" id="ligne-facade">
+    <div class="field-row field-row-chips" id="ligne-facade">
       <span class="field-label">Façade</span>
-      <div class="radio-group" id="radio-facade">
-        <label><input type="radio" name="facade" value="Gauche"> Gauche</label>
-        <label><input type="radio" name="facade" value="Droite"> Droite</label>
-        <label><input type="radio" name="facade" value="Sol"> Sol</label>
+      <div class="radio-group-chips" id="radio-facade">
+        <label class="filtre-chip"><input type="radio" name="facade" value="Gauche"> Gauche</label>
+        <label class="filtre-chip"><input type="radio" name="facade" value="Droite"> Droite</label>
+        <label class="filtre-chip"><input type="radio" name="facade" value="Sol"> Sol</label>
       </div>
     </div>
 
-    <div class="field-row" id="ligne-etage">
-      <label for="select-etage">Étage</label>
-      <select id="select-etage">
-        <option value="">—</option>
-        <option value="1">1</option>
-        <option value="2">2</option>
-        <option value="3">3</option>
-        <option value="4">4</option>
-        <option value="5">5</option>
-      </select>
+    <div class="field-row field-row-chips" id="ligne-etage">
+      <span class="field-label">Étage</span>
+      <div class="radio-group-chips" id="radio-etage">
+        <label class="filtre-chip"><input type="radio" name="etage" value="1"> 1</label>
+        <label class="filtre-chip"><input type="radio" name="etage" value="2"> 2</label>
+        <label class="filtre-chip"><input type="radio" name="etage" value="3"> 3</label>
+        <label class="filtre-chip"><input type="radio" name="etage" value="4"> 4</label>
+        <label class="filtre-chip"><input type="radio" name="etage" value="5"> 5</label>
+      </div>
     </div>
   </section>
 
