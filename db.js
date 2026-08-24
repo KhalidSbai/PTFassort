@@ -188,8 +188,12 @@ async function deplacerAffectation(id, nouvelEmplacement) {
   const affectation = await _promesseRequete(store.get(id));
   if (!affectation) throw new Error('Affectation introuvable');
 
+  // Important : on reste sur la même transaction (même `store`) pour cette requête,
+  // plutôt que d'appeler getAffectationsParCellule() qui en ouvrirait une nouvelle —
+  // sinon la transaction d'origine se referme automatiquement avant le store.put() final
+  // (comportement standard d'IndexedDB), et le déplacement échoue silencieusement.
   const nouvelleCle = cleEmplacement(nouvelEmplacement);
-  const cibles = await getAffectationsParCellule(nouvelleCle);
+  const cibles = await _promesseRequete(store.index('parCellule').getAll(nouvelleCle));
   const ordreMax = cibles.reduce((max, a) => Math.max(max, a.ordre), -1);
 
   affectation.allee = estZoneTable(nouvelEmplacement.allee) ? 'Table' : Number(nouvelEmplacement.allee);
