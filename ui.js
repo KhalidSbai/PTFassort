@@ -670,6 +670,107 @@ function initModaleDupliquer() {
   });
 }
 
+// ---------- Scanner QR (caméra) : ajoute directement un article avec sa DLC/quantité ----------
+
+let _fluxCameraScanner = null;
+let _boucleScannerActive = false;
+let _dernierCodeScanne = null;
+let _dernierScanLe = 0;
+
+async function ouvrirScannerQR() {
+  const video = document.getElementById('video-scanner-qr');
+  const statut = document.getElementById('scanner-qr-statut');
+  statut.textContent = '';
+  document.getElementById('modale-scanner-qr').classList.remove('hidden');
+
+  try {
+    _fluxCameraScanner = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  } catch (err) {
+    statut.textContent = "Impossible d'accéder à la caméra (autorisation refusée ou indisponible).";
+    afficherToast("Impossible d'accéder à la caméra", 'erreur');
+    return;
+  }
+
+  video.srcObject = _fluxCameraScanner;
+  await video.play();
+
+  _boucleScannerActive = true;
+  _dernierCodeScanne = null;
+  _dernierScanLe = 0;
+  requestAnimationFrame(boucleScannerQR);
+}
+
+function fermerScannerQR() {
+  _boucleScannerActive = false;
+  if (_fluxCameraScanner) {
+    _fluxCameraScanner.getTracks().forEach((piste) => piste.stop());
+    _fluxCameraScanner = null;
+  }
+  document.getElementById('modale-scanner-qr').classList.add('hidden');
+}
+
+const _canvasScanner = document.createElement('canvas'); // hors DOM, sert juste à extraire les pixels de la vidéo
+
+function boucleScannerQR() {
+  if (!_boucleScannerActive) return;
+
+  const video = document.getElementById('video-scanner-qr');
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    _canvasScanner.width = video.videoWidth;
+    _canvasScanner.height = video.videoHeight;
+    const contexte = _canvasScanner.getContext('2d');
+    contexte.drawImage(video, 0, 0, _canvasScanner.width, _canvasScanner.height);
+    const image = contexte.getImageData(0, 0, _canvasScanner.width, _canvasScanner.height);
+    const resultat = jsQR(image.data, image.width, image.height);
+
+    if (resultat) {
+      traiterCodeScanne(resultat.data);
+    }
+  }
+
+  requestAnimationFrame(boucleScannerQR);
+}
+
+async function traiterCodeScanne(texteScanne) {
+  const maintenant = Date.now();
+  // Anti-doublon : ignore une relecture du même code dans les 2 secondes (le temps qu'il reste dans le cadre)
+  if (texteScanne === _dernierCodeScanne && maintenant - _dernierScanLe < 2000) return;
+  _dernierCodeScanne = texteScanne;
+  _dernierScanLe = maintenant;
+
+  const statut = document.getElementById('scanner-qr-statut');
+  const donnees = analyserDonneesQR(texteScanne);
+
+  if (!donnees) {
+    statut.textContent = "QR code non reconnu (ce n'est pas une étiquette de cet entrepôt).";
+    return;
+  }
+
+  const article = await getArticleByCode(donnees.codeArticle);
+  if (!article) {
+    statut.textContent = `Article "${donnees.codeArticle}" introuvable dans le catalogue.`;
+    afficherToast('Article inconnu au catalogue', 'erreur');
+    return;
+  }
+
+  await ajouterAffectation({
+    codeArticle: donnees.codeArticle,
+    ...etat.emplacement,
+    cellule: etat.celluleOuverte,
+    stockReel: donnees.stockReel,
+    dlc: donnees.dlc,
+  });
+
+  statut.textContent = `✅ ${donnees.codeArticle} — ${article.designation} ajouté.`;
+  afficherToast('Article ajouté (scan)', 'succes', 1500);
+  await renderListeArticlesCellule();
+}
+
+function initScannerQR() {
+  document.getElementById('btn-scanner-qr').addEventListener('click', ouvrirScannerQR);
+  document.getElementById('btn-fermer-scanner-qr').addEventListener('click', fermerScannerQR);
+}
+
 // ---------- Modale de déplacement ----------
 
 let _idADeplacer = null;
@@ -1427,6 +1528,7 @@ async function genererPDFEtiquettes() {
     const quantite = aff.stockReel !== null && aff.stockReel !== undefined ? aff.stockReel : '—';
 
     const champs = [];
+    champs.push(`<img class="etiquette-qr" src="${genererDataURLQR(construireDonneesQR(aff.codeArticle, aff.dlc, aff.stockReel))}" alt="QR">`);
     if (art.designation) champs.push(champEtiquette('Désignation', art.designation));
     if (art.codeBarre) champs.push(champEtiquette('Code-barres', art.codeBarre));
     if (aff.allee !== 'Table') {
@@ -1564,6 +1666,7 @@ function initUI() {
   initModaleStockDLC();
   initModaleAjoutQteDLC();
   initModaleDupliquer();
+  initScannerQR();
   initAideImport();
   initImportCSVCellules();
   initActionsEntete();

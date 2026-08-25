@@ -82,6 +82,8 @@
     <h2 class="panel-title" id="cellule-titre">Cellule</h2>
 
     <div class="ajout-article">
+      <button id="btn-scanner-qr" class="btn btn-secondaire btn-scanner-qr">📷 Scanner un QR code</button>
+
       <div id="epingles-conteneur" class="epingles-conteneur hidden">
         <div class="epingles-titre">⭐ Épinglés</div>
         <div id="liste-epingles" class="liste-epingles"></div>
@@ -370,8 +372,23 @@
   </div>
 </div>
 
+<!-- Modale : scanner un QR code (caméra) pour ajouter directement un article avec sa DLC/quantité -->
+<div id="modale-scanner-qr" class="modale hidden">
+  <div class="modale-contenu">
+    <h3>Scanner un QR code</h3>
+    <p class="aide-texte">Vise le QR code imprimé sur l'étiquette de l'article. La caméra reste ouverte pour scanner plusieurs articles à la suite.</p>
+    <video id="video-scanner-qr" class="video-scanner" playsinline autoplay muted></video>
+    <p id="scanner-qr-statut" class="aide-texte"></p>
+    <div class="modale-actions">
+      <button id="btn-fermer-scanner-qr" class="btn btn-principal">Terminé</button>
+    </div>
+  </div>
+</div>
+
 <script src="lib/xlsx.full.min.js"></script>
 <script src="lib/Sortable.min.js"></script>
+<script src="lib/qrcode-generator.js"></script>
+<script src="lib/jsQR.js"></script>
 <script src="utils.js"></script>
 <script src="db.js"></script>
 <script src="search.js"></script>

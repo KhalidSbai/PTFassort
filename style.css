@@ -233,6 +233,20 @@ select {
   cursor: pointer;
 }
 
+.btn-scanner-qr {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.video-scanner {
+  width: 100%;
+  max-height: 320px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #000;
+  display: block;
+}
+
 .ajout-article input[type="search"] {
   width: 100%;
   padding: 12px;
@@ -966,6 +980,13 @@ select {
     text-transform: uppercase;
     letter-spacing: 1px;
     color: #444;
+  }
+
+  .etiquette-qr {
+    width: 20mm;
+    height: 20mm;
+    align-self: center;
+    margin-bottom: 4px;
   }
 
   .etiquette-pied {

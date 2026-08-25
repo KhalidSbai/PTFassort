@@ -16,6 +16,8 @@ const FICHIERS_A_METTRE_EN_CACHE = [
   './manifest.json',
   './lib/xlsx.full.min.js',
   './lib/Sortable.min.js',
+  './lib/qrcode-generator.js',
+  './lib/jsQR.js',
   './assets/icon-192.png',
   './assets/icon-512.png',
 ];

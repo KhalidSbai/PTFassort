@@ -157,6 +157,39 @@ function calculerQuantiteFrequente(quantites) {
   };
 }
 
+// ---------- QR code : article + DLC + quantité, pour réenregistrer un article scanné ----------
+
+const PREFIXE_QR_ARTICLE = 'APPCELL1';
+
+/** Construit le texte encodé dans le QR code d'une étiquette : préfixe|codeArticle|dlc|quantité */
+function construireDonneesQR(codeArticle, dlc, stockReel) {
+  return [PREFIXE_QR_ARTICLE, codeArticle, dlc || '', stockReel ?? ''].join('|');
+}
+
+/** Décode le texte lu depuis un QR code ; retourne { codeArticle, dlc, stockReel } ou null si invalide/pas le bon format */
+function analyserDonneesQR(texte) {
+  if (typeof texte !== 'string') return null;
+  const parties = texte.split('|');
+  if (parties.length !== 4 || parties[0] !== PREFIXE_QR_ARTICLE) return null;
+
+  const [, codeArticle, dlc, quantiteTexte] = parties;
+  if (!codeArticle) return null;
+
+  return {
+    codeArticle,
+    dlc: dlc || null,
+    stockReel: quantiteTexte !== '' ? Number(quantiteTexte) : null,
+  };
+}
+
+/** Génère un data URL PNG d'un QR code à partir d'un texte (utilise la bibliothèque qrcode-generator) */
+function genererDataURLQR(texte, tailleCellule = 4) {
+  const qr = qrcode(0, 'M'); // typeNumber 0 = taille automatique, correction d'erreur niveau M
+  qr.addData(texte);
+  qr.make();
+  return qr.createDataURL(tailleCellule, 0);
+}
+
 /** Convertit une DLC 'YYYY-MM-DD' en format court bien visible 'MM/AAAA' */
 function formatDLCCourt(dlc) {
   if (!dlc) return '';
