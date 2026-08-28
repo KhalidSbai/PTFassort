@@ -4,7 +4,7 @@
 //  - "affectations" : occurrences d'articles placées dans des cellules (clé auto)
 
 const DB_NOM = 'cellules-entrepot-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let _dbPromise = null;
 
@@ -24,6 +24,13 @@ function ouvrirDB() {
         const store = db.createObjectStore('affectations', { keyPath: 'id' });
         store.createIndex('parCellule', 'cle', { unique: false });
         store.createIndex('parArticle', 'codeArticle', { unique: false });
+      }
+
+      // Journal des retraits pour commande (v2) : articles scannés puis réellement
+      // supprimés du stock, conservés ici uniquement pour consultation par commande.
+      if (!db.objectStoreNames.contains('retraits')) {
+        const store = db.createObjectStore('retraits', { keyPath: 'id' });
+        store.createIndex('parCommande', 'commande', { unique: false });
       }
     };
 
@@ -333,30 +340,100 @@ async function supprimerAffectationsParCritere(critere) {
   return aSupprimer.length;
 }
 
+// ---------- Journal des retraits par commande ----------
+
+/** Ajoute une ligne au journal d'une commande (article réellement retiré du stock) */
+async function ajouterRetrait({ commande, codeArticle, designation, dlc, stockReel, emplacementLabel }) {
+  const nouvelle = {
+    id: genererId(),
+    commande,
+    codeArticle,
+    designation: designation || '',
+    dlc: dlc || null,
+    stockReel: stockReel === null || stockReel === undefined ? null : Number(stockReel),
+    emplacementLabel: emplacementLabel || '',
+    dateRetrait: new Date().toISOString(),
+  };
+
+  const tx = await _transaction(['retraits'], 'readwrite');
+  tx.objectStore('retraits').add(nouvelle);
+  await new Promise((resolve, reject) => {
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+  return nouvelle;
+}
+
+/** Retourne toutes les lignes du journal pour une commande donnée */
+async function getRetraitsParCommande(commande) {
+  const tx = await _transaction(['retraits']);
+  const index = tx.objectStore('retraits').index('parCommande');
+  const resultats = await _promesseRequete(index.getAll(commande));
+  return resultats.sort((a, b) => a.dateRetrait.localeCompare(b.dateRetrait));
+}
+
+/** Retourne tout le journal, toutes commandes confondues */
+async function getAllRetraits() {
+  const tx = await _transaction(['retraits']);
+  return _promesseRequete(tx.objectStore('retraits').getAll());
+}
+
+/** Liste triée des noms de commandes déjà utilisés (pour reprendre une commande en cours) */
+async function getNomsCommandes() {
+  const tous = await getAllRetraits();
+  return [...new Set(tous.map((r) => r.commande))].sort((a, b) => a.localeCompare(b, 'fr'));
+}
+
+/** Supprime une ligne du journal (correction d'une erreur de scan — ne restaure PAS le stock) */
+async function supprimerRetrait(id) {
+  const tx = await _transaction(['retraits'], 'readwrite');
+  tx.objectStore('retraits').delete(id);
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/** Vide tout le journal d'une commande (une fois expédiée) — ne restaure PAS le stock */
+async function supprimerCommande(commande) {
+  const lignes = await getRetraitsParCommande(commande);
+  const tx = await _transaction(['retraits'], 'readwrite');
+  const store = tx.objectStore('retraits');
+  lignes.forEach((l) => store.delete(l.id));
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 // ---------- Sauvegarde / restauration JSON complète ----------
 
 async function exporterEtatComplet() {
-  const [articles, affectations] = await Promise.all([getAllArticles(), getAllAffectations()]);
+  const [articles, affectations, retraits] = await Promise.all([getAllArticles(), getAllAffectations(), getAllRetraits()]);
   return {
     version: DB_VERSION,
     dateExport: new Date().toISOString(),
     articles,
     affectations,
+    retraits,
   };
 }
 
-/** Restaure exactement l'état précédent (remplace tout le contenu des deux stores) */
+/** Restaure exactement l'état précédent (remplace tout le contenu des trois stores) */
 async function restaurerEtatComplet(donnees) {
   const db = await ouvrirDB();
-  const tx = db.transaction(['articles', 'affectations'], 'readwrite');
+  const tx = db.transaction(['articles', 'affectations', 'retraits'], 'readwrite');
   const storeArticles = tx.objectStore('articles');
   const storeAffectations = tx.objectStore('affectations');
+  const storeRetraits = tx.objectStore('retraits');
 
   storeArticles.clear();
   storeAffectations.clear();
+  storeRetraits.clear();
 
   (donnees.articles || []).forEach((a) => storeArticles.put(a));
   (donnees.affectations || []).forEach((a) => storeAffectations.put(a));
+  (donnees.retraits || []).forEach((r) => storeRetraits.put(r));
 
   return new Promise((resolve, reject) => {
     tx.oncomplete = resolve;

@@ -71,11 +71,11 @@ async function exporterExcel() {
 /** Télécharge un fichier Excel exemple avec les bons en-têtes, pour aider à préparer l'import théorique */
 function telechargerModeleImport() {
   const lignesExemple = [
-    { 'Code article': '123456', 'Désignation': 'Huile de tournesol 5L', 'Stock théorique': 24, 'Rayon': 'Liquides', 'Famille': 'Huiles' },
-    { 'Code article': '789654', 'Désignation': 'Sucre 1 kg', 'Stock théorique': 50, 'Rayon': 'Épicerie', 'Famille': 'Sucres' },
+    { 'Code article': '123456', 'Désignation': 'Huile de tournesol 5L', 'Stock théorique': 24, 'Rayon': 'Liquides', 'Famille': 'Huiles', 'Fournisseur': 'Fournisseur ABC' },
+    { 'Code article': '789654', 'Désignation': 'Sucre 1 kg', 'Stock théorique': 50, 'Rayon': 'Épicerie', 'Famille': 'Sucres', 'Fournisseur': 'Fournisseur XYZ' },
   ];
   const feuille = XLSX.utils.json_to_sheet(lignesExemple);
-  feuille['!cols'] = [{ wch: 14 }, { wch: 30 }, { wch: 16 }, { wch: 16 }, { wch: 16 }];
+  feuille['!cols'] = [{ wch: 14 }, { wch: 30 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 18 }];
 
   const classeur = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(classeur, feuille, 'Modèle import');
@@ -196,6 +196,7 @@ function exporterStockCSV(liste, donneesParArticle) {
     return {
       'Code article': a.codeArticle,
       'Désignation': a.designation || '',
+      'Fournisseur': a.fournisseur || '',
       'Stock théorique': a.stockTheorique ?? 0,
       'Stock réel': donnees ? donnees.total : '',
       'Quantité la plus fréquente / palette': stat ? stat.quantite : '',

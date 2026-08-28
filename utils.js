@@ -157,29 +157,61 @@ function calculerQuantiteFrequente(quantites) {
   };
 }
 
-// ---------- QR code : article + DLC + quantité, pour réenregistrer un article scanné ----------
+// ---------- QR code : article + DLC + quantité + emplacement, pour réenregistrer ou retirer un article scanné ----------
 
 const PREFIXE_QR_ARTICLE = 'APPCELL1';
 
-/** Construit le texte encodé dans le QR code d'une étiquette : préfixe|codeArticle|dlc|quantité */
-function construireDonneesQR(codeArticle, dlc, stockReel) {
-  return [PREFIXE_QR_ARTICLE, codeArticle, dlc || '', stockReel ?? ''].join('|');
+/**
+ * Construit le texte encodé dans le QR code d'une étiquette :
+ * préfixe|codeArticle|dlc|quantité|allée|façade|étage|cellule
+ * (les 4 derniers champs sont vides si l'occurrence vient de la zone "Table").
+ */
+function construireDonneesQR(codeArticle, dlc, stockReel, emplacement) {
+  const allee = emplacement && emplacement.allee !== null && emplacement.allee !== undefined ? emplacement.allee : '';
+  const facade = emplacement && emplacement.facade ? emplacement.facade : '';
+  const etage = emplacement && emplacement.etage !== null && emplacement.etage !== undefined ? emplacement.etage : '';
+  const cellule = emplacement && emplacement.cellule !== null && emplacement.cellule !== undefined ? emplacement.cellule : '';
+  return [PREFIXE_QR_ARTICLE, codeArticle, dlc || '', stockReel ?? '', allee, facade, etage, cellule].join('|');
 }
 
-/** Décode le texte lu depuis un QR code ; retourne { codeArticle, dlc, stockReel } ou null si invalide/pas le bon format */
+/**
+ * Décode le texte lu depuis un QR code ; retourne { codeArticle, dlc, stockReel, emplacement }
+ * ou null si invalide/pas le bon format. `emplacement` vaut null si l'étiquette a été imprimée
+ * avant l'ajout de l'emplacement au QR (ancien format à 4 champs, encore accepté).
+ */
 function analyserDonneesQR(texte) {
   if (typeof texte !== 'string') return null;
   const parties = texte.split('|');
-  if (parties.length !== 4 || parties[0] !== PREFIXE_QR_ARTICLE) return null;
+  if (parties[0] !== PREFIXE_QR_ARTICLE) return null;
 
-  const [, codeArticle, dlc, quantiteTexte] = parties;
-  if (!codeArticle) return null;
+  if (parties.length === 4) {
+    const [, codeArticle, dlc, quantiteTexte] = parties;
+    if (!codeArticle) return null;
+    return {
+      codeArticle,
+      dlc: dlc || null,
+      stockReel: quantiteTexte !== '' ? Number(quantiteTexte) : null,
+      emplacement: null,
+    };
+  }
 
-  return {
-    codeArticle,
-    dlc: dlc || null,
-    stockReel: quantiteTexte !== '' ? Number(quantiteTexte) : null,
-  };
+  if (parties.length === 8) {
+    const [, codeArticle, dlc, quantiteTexte, allee, facade, etage, cellule] = parties;
+    if (!codeArticle) return null;
+    return {
+      codeArticle,
+      dlc: dlc || null,
+      stockReel: quantiteTexte !== '' ? Number(quantiteTexte) : null,
+      emplacement: allee !== '' ? {
+        allee: /^\d+$/.test(allee) ? Number(allee) : allee,
+        facade: facade || null,
+        etage: etage !== '' ? Number(etage) : null,
+        cellule: cellule !== '' ? Number(cellule) : null,
+      } : null,
+    };
+  }
+
+  return null;
 }
 
 /** Génère un data URL PNG d'un QR code à partir d'un texte (utilise la bibliothèque qrcode-generator) */

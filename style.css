@@ -237,6 +237,28 @@ select {
   width: 100%;
   margin-bottom: 10px;
 }
+.btn-scanner-qr:disabled { opacity: 0.5; pointer-events: none; }
+
+.btn-vider-commande {
+  width: 100%;
+  margin-top: 10px;
+  color: var(--couleur-danger);
+}
+
+.commande-carte {
+  background: #fff;
+  border: 1px solid var(--couleur-bordure);
+  border-left: 4px solid var(--couleur-accent);
+  border-radius: var(--rayon);
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.commande-infos { flex: 1; min-width: 0; }
+.commande-code { font-weight: 700; font-size: 0.85rem; }
+.commande-meta { font-size: 0.75rem; color: var(--couleur-texte-att); margin-top: 2px; }
 
 .video-scanner {
   width: 100%;

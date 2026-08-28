@@ -22,6 +22,7 @@
     <button id="btn-vue-zone" class="btn btn-icon" title="Voir les articles enregistrés par zone">👁️ Vue</button>
     <button id="btn-stock-csv" class="btn btn-icon" title="Voir le stock et la quantité la plus fréquente par article">📦 Stock</button>
     <button id="btn-dlc" class="btn btn-icon" title="Gérer les articles proches de leur DLC">📅 DLC</button>
+    <button id="btn-commandes" class="btn btn-icon" title="Retirer des articles du stock pour une commande à expédier">📦 Commandes</button>
   </div>
   <input type="file" id="file-import-theorique" accept=".xlsx,.xls,.csv" hidden>
   <input type="file" id="file-import-json" accept=".json" hidden>
@@ -149,6 +150,18 @@
       <label class="filtre-chip" id="chip-ecart-negatif"><input type="checkbox" id="checkbox-ecart-negatif"> Écart-</label>
     </div>
 
+    <label class="filtre-stock-negatif filtre-non-saisi">
+      <input type="checkbox" id="checkbox-stock-zero">
+      Afficher les articles avec un stock théorique à 0
+    </label>
+
+    <div class="field-row">
+      <label for="select-fournisseur-stock">Fournisseur</label>
+      <select id="select-fournisseur-stock">
+        <option value="">Tous</option>
+      </select>
+    </div>
+
     <div id="filtres-rayons-stock" class="filtres"></div>
     <input type="search" id="input-recherche-stock" placeholder="Rechercher un article (code ou désignation)">
     <button id="btn-export-stock-csv" class="btn btn-secondaire">📤 Exporter en CSV</button>
@@ -176,6 +189,25 @@
     </div>
 
     <div id="contenu-dlc"></div>
+  </section>
+
+  <!-- Écran Commandes : retrait réel du stock (préparation d'une commande à expédier) -->
+  <section id="panel-commandes" class="panel hidden">
+    <button id="btn-retour-commandes" class="btn btn-lien">← Retour</button>
+    <h2 class="panel-title">Commandes à expédier</h2>
+    <p class="aide-texte">Choisis ou crée le nom d'une commande, puis scanne les étiquettes des articles à préparer. Chaque scan retire réellement l'article du stock et l'enregistre ci-dessous pour consultation.</p>
+
+    <div class="field-row">
+      <label for="input-nom-commande">Nom de la commande</label>
+      <input type="text" id="input-nom-commande" placeholder="Ex : Commande 2451">
+    </div>
+    <div id="chips-commandes-existantes" class="filtres"></div>
+
+    <button id="btn-scanner-retrait" class="btn btn-secondaire btn-scanner-qr" disabled>📷 Scanner pour retirer</button>
+
+    <h3 class="sous-titre">Articles retirés pour cette commande</h3>
+    <div id="contenu-commande"></div>
+    <button id="btn-vider-commande" class="btn btn-secondaire btn-vider-commande hidden">🗑️ Vider cette commande (une fois expédiée)</button>
   </section>
 
   <!-- État vide / message -->
@@ -249,8 +281,10 @@
         <tr><td>3</td><td>Stock théorique</td><td>24</td></tr>
         <tr><td>4</td><td>Rayon</td><td>Liquides</td></tr>
         <tr><td>5</td><td>Famille <em>(facultatif)</em></td><td>Huiles</td></tr>
+        <tr><td>6</td><td>Fournisseur <em>(facultatif)</em></td><td>Fournisseur ABC</td></tr>
       </tbody>
     </table>
+    <p class="aide-texte">Famille et Fournisseur sont indépendantes : tu peux n'ajouter ni l'une ni l'autre, seulement Famille, seulement Fournisseur (alors en colonne 5), ou les deux dans cet ordre.</p>
     <p class="aide-texte">⚠️ L'orthographe et l'ordre des colonnes doivent être respectés exactement. En cas d'erreur, l'application indique précisément quelle colonne pose problème.</p>
     <div class="modale-actions">
       <button id="btn-telecharger-modele" class="btn btn-secondaire">Télécharger un exemple</button>
@@ -381,6 +415,19 @@
     <p id="scanner-qr-statut" class="aide-texte"></p>
     <div class="modale-actions">
       <button id="btn-fermer-scanner-qr" class="btn btn-principal">Terminé</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale : scanner un QR code pour RETIRER un article du stock (commande à expédier) -->
+<div id="modale-scanner-retrait" class="modale hidden">
+  <div class="modale-contenu">
+    <h3>Scanner pour retirer</h3>
+    <p class="aide-texte">Vise le QR code de l'article à retirer du stock pour la commande "<span id="scanner-retrait-commande"></span>". La caméra reste ouverte pour enchaîner plusieurs scans.</p>
+    <video id="video-scanner-retrait" class="video-scanner" playsinline autoplay muted></video>
+    <p id="scanner-retrait-statut" class="aide-texte"></p>
+    <div class="modale-actions">
+      <button id="btn-fermer-scanner-retrait" class="btn btn-principal">Terminé</button>
     </div>
   </div>
 </div>

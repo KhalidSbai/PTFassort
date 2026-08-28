@@ -771,6 +771,239 @@ function initScannerQR() {
   document.getElementById('btn-fermer-scanner-qr').addEventListener('click', fermerScannerQR);
 }
 
+// ---------- Écran Commandes : retrait réel du stock (préparation d'une commande à expédier) ----------
+
+async function afficherPanelCommandes() {
+  masquerPanelsPrincipaux();
+  document.getElementById('panel-commandes').classList.remove('hidden');
+  document.getElementById('input-nom-commande').value = '';
+  await renderChipsCommandes();
+  await renderContenuCommande();
+}
+
+function retourDepuisCommandes() {
+  document.getElementById('panel-commandes').classList.add('hidden');
+  document.getElementById('panel-emplacement').classList.remove('hidden');
+  if (estZoneTable(etat.emplacement.allee)) {
+    ouvrirTable();
+  } else if (etat.celluleOuverte) {
+    document.getElementById('panel-cellule-detail').classList.remove('hidden');
+    renderListeArticlesCellule();
+  } else if (etat.emplacement.allee) {
+    afficherGrilleCellules();
+  }
+}
+
+/** Affiche les noms de commandes déjà utilisées, pour en reprendre une en cours sans la retaper */
+async function renderChipsCommandes() {
+  const noms = await getNomsCommandes();
+  const conteneur = document.getElementById('chips-commandes-existantes');
+  conteneur.innerHTML = '';
+  noms.forEach((nom) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'filtre-chip';
+    chip.textContent = nom;
+    chip.addEventListener('click', async () => {
+      document.getElementById('input-nom-commande').value = nom;
+      await renderContenuCommande();
+    });
+    conteneur.appendChild(chip);
+  });
+}
+
+/** Affiche le journal des articles déjà retirés pour la commande actuellement saisie */
+async function renderContenuCommande() {
+  const nom = document.getElementById('input-nom-commande').value.trim();
+  const btnScanner = document.getElementById('btn-scanner-retrait');
+  const btnVider = document.getElementById('btn-vider-commande');
+  const conteneur = document.getElementById('contenu-commande');
+
+  btnScanner.disabled = !nom;
+
+  if (!nom) {
+    conteneur.innerHTML = '<p class="message-vide">Tape ou choisis un nom de commande pour commencer.</p>';
+    btnVider.classList.add('hidden');
+    return;
+  }
+
+  const lignes = await getRetraitsParCommande(nom);
+  btnVider.classList.toggle('hidden', lignes.length === 0);
+
+  if (!lignes.length) {
+    conteneur.innerHTML = '<p class="message-vide">Aucun article retiré pour cette commande pour le moment.</p>';
+    return;
+  }
+
+  conteneur.innerHTML = '';
+  lignes.forEach((l) => {
+    const carte = document.createElement('div');
+    carte.className = 'commande-carte';
+
+    const infos = document.createElement('div');
+    infos.className = 'commande-infos';
+    infos.innerHTML = `
+      <div class="commande-code">${l.codeArticle} — ${l.designation}</div>
+      <div class="commande-meta">${l.emplacementLabel}${l.stockReel !== null ? ' · Qté : ' + l.stockReel : ''}${l.dlc ? ' · DLC : ' + formatDLCCourt(l.dlc) : ''}</div>
+    `;
+    carte.appendChild(infos);
+
+    const btnSupprimer = document.createElement('button');
+    btnSupprimer.className = 'icone-btn-mini';
+    btnSupprimer.title = 'Retirer cette ligne du journal (ne restaure pas le stock)';
+    btnSupprimer.textContent = '🗑️';
+    btnSupprimer.addEventListener('click', async () => {
+      if (!confirm('Retirer cette ligne du journal ? Le stock ne sera pas restauré.')) return;
+      await supprimerRetrait(l.id);
+      await renderContenuCommande();
+    });
+    carte.appendChild(btnSupprimer);
+
+    conteneur.appendChild(carte);
+  });
+}
+
+// ---------- Scanner QR dédié au retrait (commandes) ----------
+
+let _fluxCameraRetrait = null;
+let _boucleScannerRetraitActive = false;
+let _dernierCodeScanneRetrait = null;
+let _dernierScanRetraitLe = 0;
+
+async function ouvrirScannerRetrait() {
+  const commande = document.getElementById('input-nom-commande').value.trim();
+  document.getElementById('scanner-retrait-commande').textContent = commande;
+
+  const video = document.getElementById('video-scanner-retrait');
+  const statut = document.getElementById('scanner-retrait-statut');
+  statut.textContent = '';
+  document.getElementById('modale-scanner-retrait').classList.remove('hidden');
+
+  try {
+    _fluxCameraRetrait = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  } catch (err) {
+    statut.textContent = "Impossible d'accéder à la caméra (autorisation refusée ou indisponible).";
+    afficherToast("Impossible d'accéder à la caméra", 'erreur');
+    return;
+  }
+
+  video.srcObject = _fluxCameraRetrait;
+  await video.play();
+
+  _boucleScannerRetraitActive = true;
+  _dernierCodeScanneRetrait = null;
+  _dernierScanRetraitLe = 0;
+  requestAnimationFrame(boucleScannerRetrait);
+}
+
+function fermerScannerRetrait() {
+  _boucleScannerRetraitActive = false;
+  if (_fluxCameraRetrait) {
+    _fluxCameraRetrait.getTracks().forEach((piste) => piste.stop());
+    _fluxCameraRetrait = null;
+  }
+  document.getElementById('modale-scanner-retrait').classList.add('hidden');
+}
+
+function boucleScannerRetrait() {
+  if (!_boucleScannerRetraitActive) return;
+
+  const video = document.getElementById('video-scanner-retrait');
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    _canvasScanner.width = video.videoWidth;
+    _canvasScanner.height = video.videoHeight;
+    const contexte = _canvasScanner.getContext('2d');
+    contexte.drawImage(video, 0, 0, _canvasScanner.width, _canvasScanner.height);
+    const image = contexte.getImageData(0, 0, _canvasScanner.width, _canvasScanner.height);
+    const resultat = jsQR(image.data, image.width, image.height);
+    if (resultat) traiterCodeScanneRetrait(resultat.data);
+  }
+
+  requestAnimationFrame(boucleScannerRetrait);
+}
+
+/**
+ * Retrouve l'occurrence correspondant au QR scanné (par article + emplacement d'origine
+ * si connu, sinon n'importe quelle occurrence de cet article), la supprime réellement du
+ * stock, et enregistre une ligne dans le journal de la commande en cours pour consultation.
+ */
+async function traiterCodeScanneRetrait(texteScanne) {
+  const maintenant = Date.now();
+  // Anti-doublon : ignore une relecture du même code dans les 2 secondes (le temps qu'il reste dans le cadre)
+  if (texteScanne === _dernierCodeScanneRetrait && maintenant - _dernierScanRetraitLe < 2000) return;
+  _dernierCodeScanneRetrait = texteScanne;
+  _dernierScanRetraitLe = maintenant;
+
+  const statut = document.getElementById('scanner-retrait-statut');
+  const donnees = analyserDonneesQR(texteScanne);
+
+  if (!donnees) {
+    statut.textContent = "QR code non reconnu (ce n'est pas une étiquette de cet entrepôt).";
+    return;
+  }
+
+  const commande = document.getElementById('input-nom-commande').value.trim();
+  if (!commande) {
+    statut.textContent = 'Choisis ou tape un nom de commande avant de scanner.';
+    return;
+  }
+
+  const occurrences = await getAffectationsParArticle(donnees.codeArticle);
+  if (!occurrences.length) {
+    statut.textContent = `"${donnees.codeArticle}" n'est plus en stock.`;
+    afficherToast('Article introuvable en stock', 'erreur');
+    return;
+  }
+
+  // Priorité à l'occurrence dont l'emplacement (et si possible DLC/quantité) correspond
+  // exactement à ce qui était imprimé sur l'étiquette ; à défaut, n'importe quelle occurrence
+  // de cet article (utile si l'étiquette est ancienne, sans emplacement encodé).
+  let candidate = null;
+  if (donnees.emplacement) {
+    const cle = cleEmplacement(donnees.emplacement);
+    candidate = occurrences.find((a) => a.cle === cle && a.dlc === donnees.dlc && a.stockReel === donnees.stockReel)
+             || occurrences.find((a) => a.cle === cle);
+  }
+  if (!candidate) candidate = occurrences[0];
+
+  const article = await getArticleByCode(donnees.codeArticle);
+
+  await ajouterRetrait({
+    commande,
+    codeArticle: candidate.codeArticle,
+    designation: article ? article.designation : '',
+    dlc: candidate.dlc,
+    stockReel: candidate.stockReel,
+    emplacementLabel: estZoneTable(candidate.allee) ? 'Table' : libelleEmplacementCourt(candidate),
+  });
+  await supprimerAffectation(candidate.id);
+
+  statut.textContent = `✅ ${candidate.codeArticle} — ${article ? article.designation : ''} retiré du stock.`;
+  afficherToast('Article retiré du stock', 'succes', 1500);
+  await renderContenuCommande();
+}
+
+function initCommandes() {
+  document.getElementById('btn-commandes').addEventListener('click', afficherPanelCommandes);
+  document.getElementById('btn-retour-commandes').addEventListener('click', retourDepuisCommandes);
+  document.getElementById('input-nom-commande').addEventListener('input', debounce(renderContenuCommande, 200));
+  document.getElementById('btn-scanner-retrait').addEventListener('click', ouvrirScannerRetrait);
+  document.getElementById('btn-fermer-scanner-retrait').addEventListener('click', async () => {
+    fermerScannerRetrait();
+    await renderChipsCommandes();
+    await renderContenuCommande();
+  });
+  document.getElementById('btn-vider-commande').addEventListener('click', async () => {
+    const nom = document.getElementById('input-nom-commande').value.trim();
+    if (!nom) return;
+    if (!confirm(`Vider le journal de la commande "${nom}" ? Cette action ne restaure pas le stock (les articles ont déjà été retirés) et est irréversible.`)) return;
+    await supprimerCommande(nom);
+    afficherToast('Commande vidée', 'succes');
+    await renderChipsCommandes();
+    await renderContenuCommande();
+  });
+}
+
 // ---------- Modale de déplacement ----------
 
 let _idADeplacer = null;
@@ -1044,6 +1277,8 @@ async function afficherPanelStock() {
   document.getElementById('checkbox-ecart-negatif').checked = false;
   document.getElementById('chip-ecart-positif').classList.remove('actif');
   document.getElementById('chip-ecart-negatif').classList.remove('actif');
+  document.getElementById('checkbox-stock-zero').checked = false;
+  document.getElementById('select-fournisseur-stock').value = '';
   etat.stockRayonsCoches = new Set();
   await renderContenuStock();
 }
@@ -1098,6 +1333,17 @@ function renderFiltresRayonsStock(articles) {
 let _stockListeCourante = [];
 let _stockDonneesCourantes = new Map();
 
+/** Remplit la liste déroulante des fournisseurs détectés dans le catalogue, en conservant la sélection actuelle */
+function renderOptionsFournisseurStock(articles) {
+  const select = document.getElementById('select-fournisseur-stock');
+  const valeurActuelle = select.value;
+
+  const fournisseurs = [...new Set(articles.map((a) => a.fournisseur).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
+
+  select.innerHTML = '<option value="">Tous</option>' + fournisseurs.map((f) => `<option value="${f}">${f}</option>`).join('');
+  if (fournisseurs.includes(valeurActuelle)) select.value = valeurActuelle;
+}
+
 async function renderContenuStock() {
   const texteRecherche = document.getElementById('input-recherche-stock').value;
   const [articles, affectations] = await Promise.all([getAllArticles(), getAllAffectations()]);
@@ -1112,10 +1358,19 @@ async function renderContenuStock() {
   });
 
   renderFiltresRayonsStock(articles);
+  renderOptionsFournisseurStock(articles);
 
   let liste = [...articles].sort((a, b) => a.codeArticle.localeCompare(b.codeArticle, 'fr'));
   if (etat.stockRayonsCoches.size) {
     liste = liste.filter((a) => etat.stockRayonsCoches.has(a.rayon));
+  }
+  const fournisseurFiltre = document.getElementById('select-fournisseur-stock').value;
+  if (fournisseurFiltre) {
+    liste = liste.filter((a) => a.fournisseur === fournisseurFiltre);
+  }
+  const stockZeroActif = document.getElementById('checkbox-stock-zero').checked;
+  if (stockZeroActif) {
+    liste = liste.filter((a) => Number(a.stockTheorique ?? 0) === 0);
   }
   if (texteRecherche.trim()) {
     liste = liste.filter((a) => correspondMotsCles(a.codeArticle + ' ' + a.designation, texteRecherche));
@@ -1142,7 +1397,8 @@ async function renderContenuStock() {
   if (!liste.length) {
     const raisonEcart = (ecartPositifActif && ecartNegatifActif) ? ' avec un écart non nul'
       : ecartPositifActif ? ' avec un écart positif'
-      : ecartNegatifActif ? ' avec un écart négatif' : '';
+      : ecartNegatifActif ? ' avec un écart négatif'
+      : stockZeroActif ? ' avec un stock théorique à 0' : '';
     conteneur.innerHTML = `<p class="message-vide">Aucun article${texteRecherche.trim() ? ' pour cette recherche' : raisonEcart}.</p>`;
     return;
   }
@@ -1197,7 +1453,7 @@ const lancerRechercheStock = debounce(renderContenuStock, 120);
 // ---------- Vue de consultation : articles enregistrés par zone ----------
 
 function masquerPanelsPrincipaux() {
-  ['panel-emplacement', 'panel-cellules', 'panel-cellule-detail', 'panel-vue-zone', 'panel-stock', 'panel-dlc'].forEach((id) =>
+  ['panel-emplacement', 'panel-cellules', 'panel-cellule-detail', 'panel-vue-zone', 'panel-stock', 'panel-dlc', 'panel-commandes'].forEach((id) =>
     document.getElementById(id).classList.add('hidden')
   );
 }
@@ -1528,7 +1784,7 @@ async function genererPDFEtiquettes() {
     const quantite = aff.stockReel !== null && aff.stockReel !== undefined ? aff.stockReel : '—';
 
     const champs = [];
-    champs.push(`<img class="etiquette-qr" src="${genererDataURLQR(construireDonneesQR(aff.codeArticle, aff.dlc, aff.stockReel))}" alt="QR">`);
+    champs.push(`<img class="etiquette-qr" src="${genererDataURLQR(construireDonneesQR(aff.codeArticle, aff.dlc, aff.stockReel, { allee: aff.allee, facade: aff.facade, etage: aff.etage, cellule: aff.cellule }))}" alt="QR">`);
     if (art.designation) champs.push(champEtiquette('Désignation', art.designation));
     if (art.codeBarre) champs.push(champEtiquette('Code-barres', art.codeBarre));
     if (aff.allee !== 'Table') {
@@ -1667,6 +1923,7 @@ function initUI() {
   initModaleAjoutQteDLC();
   initModaleDupliquer();
   initScannerQR();
+  initCommandes();
   initAideImport();
   initImportCSVCellules();
   initActionsEntete();
@@ -1697,6 +1954,8 @@ function initUI() {
     document.getElementById('chip-ecart-negatif').classList.toggle('actif', e.target.checked);
     renderContenuStock();
   });
+  document.getElementById('checkbox-stock-zero').addEventListener('change', renderContenuStock);
+  document.getElementById('select-fournisseur-stock').addEventListener('change', renderContenuStock);
   document.getElementById('btn-export-stock-csv').addEventListener('click', () => {
     try {
       exporterStockCSV(_stockListeCourante, _stockDonneesCourantes);

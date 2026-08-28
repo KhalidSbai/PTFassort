@@ -2,10 +2,14 @@
 
 const COLONNES_ATTENDUES = ['Code article', 'Désignation', 'Stock théorique', 'Rayon'];
 const COLONNE_FAMILLE = 'Famille';
+const COLONNE_FOURNISSEUR = 'Fournisseur';
 
 /**
  * Vérifie que les en-têtes du fichier correspondent exactement (orthographe + ordre)
- * à ce qui est attendu. Retourne { valide, erreur, aFamille }.
+ * à ce qui est attendu. Après les 4 colonnes obligatoires, "Famille" et "Fournisseur"
+ * sont toutes deux facultatives et indépendantes l'une de l'autre : ni, l'une, l'autre,
+ * ou les deux (dans cet ordre : Famille puis Fournisseur si les deux sont présentes).
+ * Retourne { valide, erreur, aFamille, aFournisseur }.
  */
 function validerEntetes(entetes) {
   const entetesNettoyees = entetes.map((e) => String(e ?? '').trim());
@@ -21,19 +25,27 @@ function validerEntetes(entetes) {
     }
   }
 
-  const aFamille = entetesNettoyees[COLONNES_ATTENDUES.length] === COLONNE_FAMILLE;
-  if (entetesNettoyees.length > COLONNES_ATTENDUES.length && !aFamille) {
+  let index = COLONNES_ATTENDUES.length;
+  const aFamille = entetesNettoyees[index] === COLONNE_FAMILLE;
+  if (aFamille) index++;
+  const aFournisseur = entetesNettoyees[index] === COLONNE_FOURNISSEUR;
+  if (aFournisseur) index++;
+
+  if (entetesNettoyees.length > index) {
     return {
       valide: false,
-      erreur: `Colonne ${COLONNES_ATTENDUES.length + 1} incorrecte : attendu "${COLONNE_FAMILLE}" (facultative), trouvé "${entetesNettoyees[COLONNES_ATTENDUES.length]}".`,
+      erreur: `Colonne ${index + 1} incorrecte : attendu "${COLONNE_FAMILLE}" ou "${COLONNE_FOURNISSEUR}" (facultatives), trouvé "${entetesNettoyees[index]}".`,
     };
   }
 
-  return { valide: true, aFamille };
+  return { valide: true, aFamille, aFournisseur };
 }
 
 /** Transforme les lignes brutes de la feuille en objets articles */
-function construireArticles(lignes, aFamille) {
+function construireArticles(lignes, aFamille, aFournisseur) {
+  const indexFamille = COLONNES_ATTENDUES.length;
+  const indexFournisseur = aFamille ? indexFamille + 1 : indexFamille;
+
   const articles = [];
   for (const ligne of lignes) {
     const codeArticle = String(ligne[0] ?? '').trim();
@@ -43,7 +55,8 @@ function construireArticles(lignes, aFamille) {
       designation: String(ligne[1] ?? '').trim(),
       stockTheorique: Number(ligne[2]) || 0,
       rayon: String(ligne[3] ?? '').trim(),
-      famille: aFamille ? String(ligne[4] ?? '').trim() : '',
+      famille: aFamille ? String(ligne[indexFamille] ?? '').trim() : '',
+      fournisseur: aFournisseur ? String(ligne[indexFournisseur] ?? '').trim() : '',
       codeBarre: null, // sera préservé automatiquement lors d'un ré-import si déjà renseigné (voir remplacerCatalogue)
     });
   }
@@ -88,7 +101,7 @@ async function importerEtatTheorique(fichier) {
     throw new Error(validation.erreur);
   }
 
-  const articles = construireArticles(lignes.slice(1), validation.aFamille);
+  const articles = construireArticles(lignes.slice(1), validation.aFamille, validation.aFournisseur);
   if (!articles.length) {
     throw new Error("Aucune ligne d'article valide n'a été trouvée dans le fichier.");
   }
