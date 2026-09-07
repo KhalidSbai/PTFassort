@@ -267,6 +267,13 @@ select {
   border-radius: 8px;
   background: #000;
   display: block;
+  box-shadow: 0 0 0 0 var(--couleur-succes);
+  transition: box-shadow 0.3s ease-out;
+}
+
+.video-scanner.scan-flash {
+  box-shadow: 0 0 0 6px var(--couleur-succes);
+  transition: none; /* apparition instantanée du flash, puis atténuation via la transition ci-dessus */
 }
 
 .ajout-article input[type="search"] {

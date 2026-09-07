@@ -670,6 +670,44 @@ function initModaleDupliquer() {
   });
 }
 
+// ---------- Retour sonore/visuel commun aux deux scanners (bip + flash à chaque scan reconnu) ----------
+
+/** Délai (ms) pendant lequel un même code QR relu n'est pas traité une 2e fois (le temps qu'il reste dans le cadre) */
+const DELAI_ANTI_DOUBLON_SCAN = 2000;
+
+/** Joue un court bip de confirmation, généré à la volée (aucun fichier audio nécessaire, fonctionne hors ligne) */
+function jouerBipScan() {
+  try {
+    const contexte = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillateur = contexte.createOscillator();
+    const gain = contexte.createGain();
+    oscillateur.type = 'sine';
+    oscillateur.frequency.value = 880;
+    gain.gain.setValueAtTime(0.3, contexte.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, contexte.currentTime + 0.15);
+    oscillateur.connect(gain);
+    gain.connect(contexte.destination);
+    oscillateur.start();
+    oscillateur.stop(contexte.currentTime + 0.15);
+  } catch (e) {
+    // audio indisponible (lecture bloquée par le navigateur, etc.) : le scan continue sans bloquer
+  }
+}
+
+/** Déclenche un flash vert bref autour du flux vidéo, pour confirmer visuellement un scan réussi */
+function flasherVideoScan(videoId) {
+  const video = document.getElementById(videoId);
+  if (!video) return;
+  video.classList.add('scan-flash');
+  setTimeout(() => video.classList.remove('scan-flash'), 350);
+}
+
+/** Bip + flash : à appeler à chaque scan reconnu et traité avec succès */
+function signalerScanReussi(videoId) {
+  jouerBipScan();
+  flasherVideoScan(videoId);
+}
+
 // ---------- Scanner QR (caméra) : ajoute directement un article avec sa DLC/quantité ----------
 
 let _fluxCameraScanner = null;
@@ -732,12 +770,6 @@ function boucleScannerQR() {
 }
 
 async function traiterCodeScanne(texteScanne) {
-  const maintenant = Date.now();
-  // Anti-doublon : ignore une relecture du même code dans les 2 secondes (le temps qu'il reste dans le cadre)
-  if (texteScanne === _dernierCodeScanne && maintenant - _dernierScanLe < 2000) return;
-  _dernierCodeScanne = texteScanne;
-  _dernierScanLe = maintenant;
-
   const statut = document.getElementById('scanner-qr-statut');
   const donnees = analyserDonneesQR(texteScanne);
 
@@ -745,6 +777,14 @@ async function traiterCodeScanne(texteScanne) {
     statut.textContent = "QR code non reconnu (ce n'est pas une étiquette de cet entrepôt).";
     return;
   }
+
+  const maintenant = Date.now();
+  // Anti-doublon : ignore une relecture du même code dans les 2 secondes (le temps qu'il reste dans le
+  // cadre). Vérifié seulement ici, une fois le QR reconnu valide, pour qu'un scan invalide intercalé
+  // (reflet, flou passager...) ne réinitialise jamais ce délai à tort.
+  if (texteScanne === _dernierCodeScanne && maintenant - _dernierScanLe < DELAI_ANTI_DOUBLON_SCAN) return;
+  _dernierCodeScanne = texteScanne;
+  _dernierScanLe = maintenant;
 
   const article = await getArticleByCode(donnees.codeArticle);
   if (!article) {
@@ -762,6 +802,7 @@ async function traiterCodeScanne(texteScanne) {
   });
 
   statut.textContent = `✅ ${donnees.codeArticle} — ${article.designation} ajouté.`;
+  signalerScanReussi('video-scanner-qr');
   afficherToast('Article ajouté (scan)', 'succes', 1500);
   await renderListeArticlesCellule();
 }
@@ -928,12 +969,6 @@ function boucleScannerRetrait() {
  * stock, et enregistre une ligne dans le journal de la commande en cours pour consultation.
  */
 async function traiterCodeScanneRetrait(texteScanne) {
-  const maintenant = Date.now();
-  // Anti-doublon : ignore une relecture du même code dans les 2 secondes (le temps qu'il reste dans le cadre)
-  if (texteScanne === _dernierCodeScanneRetrait && maintenant - _dernierScanRetraitLe < 2000) return;
-  _dernierCodeScanneRetrait = texteScanne;
-  _dernierScanRetraitLe = maintenant;
-
   const statut = document.getElementById('scanner-retrait-statut');
   const donnees = analyserDonneesQR(texteScanne);
 
@@ -941,6 +976,14 @@ async function traiterCodeScanneRetrait(texteScanne) {
     statut.textContent = "QR code non reconnu (ce n'est pas une étiquette de cet entrepôt).";
     return;
   }
+
+  const maintenant = Date.now();
+  // Anti-doublon : ignore une relecture du même code dans les 2 secondes (le temps qu'il reste dans le
+  // cadre). Vérifié seulement ici, une fois le QR reconnu valide, pour qu'un scan invalide intercalé
+  // ne réinitialise jamais ce délai à tort.
+  if (texteScanne === _dernierCodeScanneRetrait && maintenant - _dernierScanRetraitLe < DELAI_ANTI_DOUBLON_SCAN) return;
+  _dernierCodeScanneRetrait = texteScanne;
+  _dernierScanRetraitLe = maintenant;
 
   const commande = document.getElementById('input-nom-commande').value.trim();
   if (!commande) {
@@ -979,6 +1022,7 @@ async function traiterCodeScanneRetrait(texteScanne) {
   await supprimerAffectation(candidate.id);
 
   statut.textContent = `✅ ${candidate.codeArticle} — ${article ? article.designation : ''} retiré du stock.`;
+  signalerScanReussi('video-scanner-retrait');
   afficherToast('Article retiré du stock', 'succes', 1500);
   await renderContenuCommande();
 }
