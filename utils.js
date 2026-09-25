@@ -157,27 +157,35 @@ function calculerQuantiteFrequente(quantites) {
   };
 }
 
-// ---------- QR code : article + DLC + quantité + emplacement, pour réenregistrer ou retirer un article scanné ----------
+// ---------- QR code : article + DLC + quantité + emplacement + id, pour réenregistrer ou retirer un article scanné ----------
 
 const PREFIXE_QR_ARTICLE = 'APPCELL1';
 
 /**
  * Construit le texte encodé dans le QR code d'une étiquette :
- * préfixe|codeArticle|dlc|quantité|allée|façade|étage|cellule
- * (les 4 derniers champs sont vides si l'occurrence vient de la zone "Table").
+ * préfixe|codeArticle|dlc|quantité|allée|façade|étage|cellule|id
+ * (les 4 champs d'emplacement sont vides si l'occurrence vient de la zone "Table").
+ * L'id (identifiant unique de l'occurrence en base) permet, même si plusieurs exemplaires
+ * du même article se trouvent au même emplacement, de retrouver et manipuler exactement
+ * CET exemplaire précis (et non un autre identique) lors d'un déplacement ou d'un retrait.
  */
-function construireDonneesQR(codeArticle, dlc, stockReel, emplacement) {
+function construireDonneesQR(codeArticle, dlc, stockReel, emplacement, id) {
   const allee = emplacement && emplacement.allee !== null && emplacement.allee !== undefined ? emplacement.allee : '';
   const facade = emplacement && emplacement.facade ? emplacement.facade : '';
   const etage = emplacement && emplacement.etage !== null && emplacement.etage !== undefined ? emplacement.etage : '';
   const cellule = emplacement && emplacement.cellule !== null && emplacement.cellule !== undefined ? emplacement.cellule : '';
-  return [PREFIXE_QR_ARTICLE, codeArticle, dlc || '', stockReel ?? '', allee, facade, etage, cellule].join('|');
+  return [PREFIXE_QR_ARTICLE, codeArticle, dlc || '', stockReel ?? '', allee, facade, etage, cellule, id || ''].join('|');
 }
 
 /**
- * Décode le texte lu depuis un QR code ; retourne { codeArticle, dlc, stockReel, emplacement }
- * ou null si invalide/pas le bon format. `emplacement` vaut null si l'étiquette a été imprimée
- * avant l'ajout de l'emplacement au QR (ancien format à 4 champs, encore accepté).
+ * Décode le texte lu depuis un QR code ; retourne { codeArticle, dlc, stockReel, emplacement, id }
+ * ou null si invalide/pas le bon format.
+ * - `emplacement` vaut null si l'étiquette a été imprimée avant l'ajout de l'emplacement au QR
+ *   (ancien format à 4 champs, encore accepté).
+ * - `id` vaut null si l'étiquette a été imprimée avant l'ajout de l'identifiant unique
+ *   (formats à 4 ou 8 champs, encore acceptés) : dans ce cas, il faut retrouver l'occurrence
+ *   par ses autres attributs (article/emplacement/DLC/quantité), avec le risque de ne pas
+ *   pouvoir distinguer deux exemplaires strictement identiques au même endroit.
  */
 function analyserDonneesQR(texte) {
   if (typeof texte !== 'string') return null;
@@ -192,11 +200,12 @@ function analyserDonneesQR(texte) {
       dlc: dlc || null,
       stockReel: quantiteTexte !== '' ? Number(quantiteTexte) : null,
       emplacement: null,
+      id: null,
     };
   }
 
-  if (parties.length === 8) {
-    const [, codeArticle, dlc, quantiteTexte, allee, facade, etage, cellule] = parties;
+  if (parties.length === 8 || parties.length === 9) {
+    const [, codeArticle, dlc, quantiteTexte, allee, facade, etage, cellule, id] = parties;
     if (!codeArticle) return null;
     return {
       codeArticle,
@@ -208,6 +217,7 @@ function analyserDonneesQR(texte) {
         etage: etage !== '' ? Number(etage) : null,
         cellule: cellule !== '' ? Number(cellule) : null,
       } : null,
+      id: id || null,
     };
   }
 

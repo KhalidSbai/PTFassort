@@ -14,15 +14,11 @@
   <h1 class="app-title">Cellules Entrepôt</h1>
   <div class="header-actions">
     <button id="btn-accueil" class="btn btn-icon" title="Retour à l'écran d'accueil">🏠 Accueil</button>
-    <button id="btn-import-theorique" class="btn btn-icon" title="Importer état théorique">📥 Import</button>
-    <button id="btn-aide-import" class="btn btn-icon" title="Comment préparer le fichier d'import">❓ Aide</button>
-    <button id="btn-export-excel" class="btn btn-icon" title="Exporter Excel">📊 Excel</button>
-    <button id="btn-export-json" class="btn btn-icon" title="Exporter sauvegarde JSON">💾 Sauver</button>
-    <button id="btn-import-json" class="btn btn-icon" title="Importer sauvegarde JSON">📂 Restaurer</button>
     <button id="btn-vue-zone" class="btn btn-icon" title="Voir les articles enregistrés par zone">👁️ Vue</button>
     <button id="btn-stock-csv" class="btn btn-icon" title="Voir le stock et la quantité la plus fréquente par article">📦 Stock</button>
     <button id="btn-dlc" class="btn btn-icon" title="Gérer les articles proches de leur DLC">📅 DLC</button>
     <button id="btn-commandes" class="btn btn-icon" title="Retirer des articles du stock pour une commande à expédier">📦 Commandes</button>
+    <button id="btn-parametres" class="btn btn-icon" title="Import stock, Excel, sauvegarde">⚙️ Paramètres</button>
   </div>
   <input type="file" id="file-import-theorique" accept=".xlsx,.xls,.csv" hidden>
   <input type="file" id="file-import-json" accept=".json" hidden>
@@ -210,6 +206,25 @@
     <button id="btn-vider-commande" class="btn btn-secondaire btn-vider-commande hidden">🗑️ Vider cette commande (une fois expédiée)</button>
   </section>
 
+  <!-- Écran Paramètres : import stock, sauvegarde, export -->
+  <section id="panel-parametres" class="panel hidden">
+    <button id="btn-retour-parametres" class="btn btn-lien">← Retour</button>
+    <h2 class="panel-title">Paramètres</h2>
+
+    <h3 class="sous-titre">Import stock</h3>
+    <div class="toolbar-cellules">
+      <button id="btn-import-theorique" class="btn btn-secondaire">📥 Import stock</button>
+      <button id="btn-aide-import" class="btn btn-icon-discret" title="Comment préparer le fichier d'import">❓ Aide</button>
+    </div>
+
+    <h3 class="sous-titre">Sauvegarde</h3>
+    <button id="btn-export-json" class="btn btn-secondaire">💾 Sauver</button>
+    <button id="btn-import-json" class="btn btn-secondaire">📂 Restaurer</button>
+
+    <h3 class="sous-titre">Export</h3>
+    <button id="btn-export-excel" class="btn btn-secondaire">📊 Excel</button>
+  </section>
+
   <!-- État vide / message -->
   <p id="message-vide" class="message-vide hidden"></p>
 
@@ -332,7 +347,7 @@
     </div>
     <div class="field-row">
       <label for="input-code-barre">Code-barres</label>
-      <input type="text" id="input-code-barre" placeholder="Ex : 3760012345678">
+      <input type="text" inputmode="numeric" pattern="[0-9]*" id="input-code-barre" placeholder="Ex : 3760012345678">
     </div>
     <div class="modale-actions">
       <button id="btn-annuler-stock-dlc" class="btn btn-secondaire">Annuler</button>

@@ -141,6 +141,12 @@ async function getAffectationsParArticle(codeArticle) {
   return _promesseRequete(index.getAll(codeArticle));
 }
 
+/** Retourne l'occurrence exacte correspondant à cet identifiant, ou undefined si elle n'existe plus */
+async function getAffectationParId(id) {
+  const tx = await _transaction(['affectations']);
+  return _promesseRequete(tx.objectStore('affectations').get(id));
+}
+
 /** Retourne une map { cle -> nombre d'articles } pour toutes les cellules connues */
 async function compterParCle() {
   const tout = await getAllAffectations();

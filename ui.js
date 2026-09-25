@@ -991,23 +991,31 @@ async function traiterCodeScanneRetrait(texteScanne) {
     return;
   }
 
-  const occurrences = await getAffectationsParArticle(donnees.codeArticle);
-  if (!occurrences.length) {
-    statut.textContent = `"${donnees.codeArticle}" n'est plus en stock.`;
-    afficherToast('Article introuvable en stock', 'erreur');
-    return;
+  // Priorité absolue à l'identifiant unique de l'occurrence (résout toute ambiguïté même
+  // si plusieurs exemplaires strictement identiques du même article se trouvent au même
+  // endroit) ; à défaut (étiquette imprimée avant l'ajout de l'id, ou occurrence déjà
+  // retirée/déplacée entre-temps), on retombe sur la correspondance par emplacement/DLC/
+  // quantité, puis sur n'importe quelle occurrence de cet article en tout dernier recours.
+  let candidate = null;
+  if (donnees.id) {
+    const parId = await getAffectationParId(donnees.id);
+    if (parId && parId.codeArticle === donnees.codeArticle) candidate = parId;
   }
 
-  // Priorité à l'occurrence dont l'emplacement (et si possible DLC/quantité) correspond
-  // exactement à ce qui était imprimé sur l'étiquette ; à défaut, n'importe quelle occurrence
-  // de cet article (utile si l'étiquette est ancienne, sans emplacement encodé).
-  let candidate = null;
-  if (donnees.emplacement) {
-    const cle = cleEmplacement(donnees.emplacement);
-    candidate = occurrences.find((a) => a.cle === cle && a.dlc === donnees.dlc && a.stockReel === donnees.stockReel)
-             || occurrences.find((a) => a.cle === cle);
+  if (!candidate) {
+    const occurrences = await getAffectationsParArticle(donnees.codeArticle);
+    if (!occurrences.length) {
+      statut.textContent = `"${donnees.codeArticle}" n'est plus en stock.`;
+      afficherToast('Article introuvable en stock', 'erreur');
+      return;
+    }
+    if (donnees.emplacement) {
+      const cle = cleEmplacement(donnees.emplacement);
+      candidate = occurrences.find((a) => a.cle === cle && a.dlc === donnees.dlc && a.stockReel === donnees.stockReel)
+               || occurrences.find((a) => a.cle === cle);
+    }
+    if (!candidate) candidate = occurrences[0];
   }
-  if (!candidate) candidate = occurrences[0];
 
   const article = await getArticleByCode(donnees.codeArticle);
 
@@ -1046,6 +1054,31 @@ function initCommandes() {
     await renderChipsCommandes();
     await renderContenuCommande();
   });
+}
+
+// ---------- Écran Paramètres : import stock, sauvegarde, export ----------
+
+function afficherPanelParametres() {
+  masquerPanelsPrincipaux();
+  document.getElementById('panel-parametres').classList.remove('hidden');
+}
+
+function retourDepuisParametres() {
+  document.getElementById('panel-parametres').classList.add('hidden');
+  document.getElementById('panel-emplacement').classList.remove('hidden');
+  if (estZoneTable(etat.emplacement.allee)) {
+    ouvrirTable();
+  } else if (etat.celluleOuverte) {
+    document.getElementById('panel-cellule-detail').classList.remove('hidden');
+    renderListeArticlesCellule();
+  } else if (etat.emplacement.allee) {
+    afficherGrilleCellules();
+  }
+}
+
+function initPanelParametres() {
+  document.getElementById('btn-parametres').addEventListener('click', afficherPanelParametres);
+  document.getElementById('btn-retour-parametres').addEventListener('click', retourDepuisParametres);
 }
 
 // ---------- Modale de déplacement ----------
@@ -1497,7 +1530,7 @@ const lancerRechercheStock = debounce(renderContenuStock, 120);
 // ---------- Vue de consultation : articles enregistrés par zone ----------
 
 function masquerPanelsPrincipaux() {
-  ['panel-emplacement', 'panel-cellules', 'panel-cellule-detail', 'panel-vue-zone', 'panel-stock', 'panel-dlc', 'panel-commandes'].forEach((id) =>
+  ['panel-emplacement', 'panel-cellules', 'panel-cellule-detail', 'panel-vue-zone', 'panel-stock', 'panel-dlc', 'panel-commandes', 'panel-parametres'].forEach((id) =>
     document.getElementById(id).classList.add('hidden')
   );
 }
@@ -1828,7 +1861,7 @@ async function genererPDFEtiquettes() {
     const quantite = aff.stockReel !== null && aff.stockReel !== undefined ? aff.stockReel : '—';
 
     const champs = [];
-    champs.push(`<img class="etiquette-qr" src="${genererDataURLQR(construireDonneesQR(aff.codeArticle, aff.dlc, aff.stockReel, { allee: aff.allee, facade: aff.facade, etage: aff.etage, cellule: aff.cellule }))}" alt="QR">`);
+    champs.push(`<img class="etiquette-qr" src="${genererDataURLQR(construireDonneesQR(aff.codeArticle, aff.dlc, aff.stockReel, { allee: aff.allee, facade: aff.facade, etage: aff.etage, cellule: aff.cellule }, aff.id))}" alt="QR">`);
     if (art.designation) champs.push(champEtiquette('Désignation', art.designation));
     if (art.codeBarre) champs.push(champEtiquette('Code-barres', art.codeBarre));
     if (aff.allee !== 'Table') {
@@ -1968,6 +2001,7 @@ function initUI() {
   initModaleDupliquer();
   initScannerQR();
   initCommandes();
+  initPanelParametres();
   initAideImport();
   initImportCSVCellules();
   initActionsEntete();
